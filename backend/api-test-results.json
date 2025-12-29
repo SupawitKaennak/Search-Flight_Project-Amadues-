@@ -1,0 +1,218 @@
+{
+  "timestamp": "2025-12-29T12:07:58.344Z",
+  "summary": {
+    "total": 26,
+    "successful": 23,
+    "failed": 3
+  },
+  "results": [
+    {
+      "endpoint": "/health",
+      "method": "GET",
+      "status": "success",
+      "statusCode": 200,
+      "responseTime": 42,
+      "message": "OK"
+    },
+    {
+      "endpoint": "/health/detailed",
+      "method": "GET",
+      "status": "success",
+      "statusCode": 200,
+      "responseTime": 1176,
+      "message": "OK"
+    },
+    {
+      "endpoint": "/health/database",
+      "method": "GET",
+      "status": "success",
+      "statusCode": 200,
+      "responseTime": 3,
+      "message": "OK"
+    },
+    {
+      "endpoint": "/health/amadeus",
+      "method": "GET",
+      "status": "success",
+      "statusCode": 200,
+      "responseTime": 558,
+      "message": "OK"
+    },
+    {
+      "endpoint": "/health/environment",
+      "method": "GET",
+      "status": "success",
+      "statusCode": 200,
+      "responseTime": 2,
+      "message": "OK"
+    },
+    {
+      "endpoint": "/health/endpoints",
+      "method": "GET",
+      "status": "success",
+      "statusCode": 200,
+      "responseTime": 4,
+      "message": "OK"
+    },
+    {
+      "endpoint": "/flights/analyze",
+      "method": "POST",
+      "status": "success",
+      "statusCode": 200,
+      "responseTime": 1846,
+      "message": "OK"
+    },
+    {
+      "endpoint": "/flights/prices",
+      "method": "POST",
+      "status": "success",
+      "statusCode": 200,
+      "responseTime": 1113,
+      "message": "OK"
+    },
+    {
+      "endpoint": "/flights/airlines",
+      "method": "GET",
+      "status": "success",
+      "statusCode": 200,
+      "responseTime": 869,
+      "message": "OK"
+    },
+    {
+      "endpoint": "/flights/airport-code",
+      "method": "GET",
+      "status": "success",
+      "statusCode": 200,
+      "responseTime": 5,
+      "message": "OK"
+    },
+    {
+      "endpoint": "/flights/predict-price",
+      "method": "POST",
+      "status": "success",
+      "statusCode": 200,
+      "responseTime": 912,
+      "message": "OK"
+    },
+    {
+      "endpoint": "/flights/price-trend",
+      "method": "POST",
+      "status": "error",
+      "statusCode": 404,
+      "responseTime": 3104,
+      "message": "Insufficient data for trend analysis"
+    },
+    {
+      "endpoint": "/flights/predict-price-range",
+      "method": "POST",
+      "status": "success",
+      "statusCode": 200,
+      "responseTime": 1138,
+      "message": "OK"
+    },
+    {
+      "endpoint": "/flights/cheapest-dates",
+      "method": "POST",
+      "status": "error",
+      "statusCode": 500,
+      "responseTime": 1830,
+      "message": "Error"
+    },
+    {
+      "endpoint": "/flights/price-analysis",
+      "method": "POST",
+      "status": "success",
+      "statusCode": 200,
+      "responseTime": 8659,
+      "message": "OK"
+    },
+    {
+      "endpoint": "/airports/search",
+      "method": "GET",
+      "status": "success",
+      "statusCode": 200,
+      "responseTime": 5,
+      "message": "OK"
+    },
+    {
+      "endpoint": "/airports/BKK",
+      "method": "GET",
+      "status": "success",
+      "statusCode": 200,
+      "responseTime": 3,
+      "message": "OK"
+    },
+    {
+      "endpoint": "/airlines",
+      "method": "GET",
+      "status": "success",
+      "statusCode": 200,
+      "responseTime": 2,
+      "message": "OK"
+    },
+    {
+      "endpoint": "/airlines/TG",
+      "method": "GET",
+      "status": "success",
+      "statusCode": 200,
+      "responseTime": 3,
+      "message": "OK"
+    },
+    {
+      "endpoint": "/destinations/most-booked",
+      "method": "GET",
+      "status": "success",
+      "statusCode": 200,
+      "responseTime": 583,
+      "message": "OK"
+    },
+    {
+      "endpoint": "/destinations/most-traveled",
+      "method": "GET",
+      "status": "success",
+      "statusCode": 200,
+      "responseTime": 570,
+      "message": "OK"
+    },
+    {
+      "endpoint": "/destinations/inspiration",
+      "method": "GET",
+      "status": "error",
+      "statusCode": 500,
+      "responseTime": 963,
+      "message": "Error"
+    },
+    {
+      "endpoint": "/statistics/search",
+      "method": "POST",
+      "status": "success",
+      "statusCode": 200,
+      "responseTime": 7,
+      "message": "OK"
+    },
+    {
+      "endpoint": "/statistics/price",
+      "method": "POST",
+      "status": "success",
+      "statusCode": 200,
+      "responseTime": 6,
+      "message": "OK"
+    },
+    {
+      "endpoint": "/statistics",
+      "method": "GET",
+      "status": "success",
+      "statusCode": 200,
+      "responseTime": 30,
+      "message": "OK"
+    },
+    {
+      "endpoint": "/statistics/price",
+      "method": "GET",
+      "status": "success",
+      "statusCode": 200,
+      "responseTime": 4,
+      "message": "OK"
+    }
+  ]
+}
