@@ -3,6 +3,7 @@ import { FlightModel } from '../models/Flight';
 import { AmadeusAirlineService } from './amadeusAirlineService';
 import { format, parseISO, addDays, differenceInDays } from 'date-fns';
 import { CacheService } from './cacheService';
+import { pool } from '../config/database';
 
 export interface AmadeusFlightOffer {
   id: string;
@@ -38,7 +39,7 @@ export class AmadeusFlightOffersService extends AmadeusService {
   }
 
   /**
-   * Search flight offers from Amadeus API
+   * Search flight offers from Amadeus API with database fallback
    * Uses retry logic with exponential backoff for rate limit errors
    */
   async searchFlightOffers(params: {
@@ -67,10 +68,20 @@ export class AmadeusFlightOffersService extends AmadeusService {
       const response = await this.executeWithRetry<{ data?: AmadeusFlightOffer[] }>(() =>
         this.amadeus.shopping.flightOffersSearch.get(searchParams)
       );
-      return response.data || [];
+      
+      // ✅ Step 1: If Amadeus has data, return it
+      if (response.data && response.data.length > 0) {
+        console.log('[AmadeusFlightOffersService] ✅ Got data from Amadeus API');
+        return response.data;
+      }
+      
+      // ⚠️ Step 2: If Amadeus returns empty, fallback to database
+      console.log('[AmadeusFlightOffersService] ⚠️ Amadeus returned empty, falling back to database');
+      return await this.searchFlightOffersFromDatabase(params);
     } catch (error: any) {
-      console.error('[AmadeusFlightOffersService] Error searching flights:', error);
-      this.handleError(error);
+      console.error('[AmadeusFlightOffersService] ❌ Error searching flights, falling back to database:', error);
+      // Fallback to database on error
+      return await this.searchFlightOffersFromDatabase(params);
     }
   }
 
@@ -365,6 +376,127 @@ export class AmadeusFlightOffersService extends AmadeusService {
     if (month >= 10 || month <= 1) return 'high'; // Nov-Feb
     if (month >= 4 && month <= 8) return 'low';   // May-Sep
     return 'normal'; // Mar-Apr, Oct
+  }
+
+  /**
+   * 🆕 Fallback: Query flight offers from our database
+   * This is used when Amadeus API returns no data or has errors
+   */
+  private async searchFlightOffersFromDatabase(params: {
+    origin: string;
+    destination: string;
+    departureDate: string;
+    returnDate?: string;
+    adults: number;
+    max?: number;
+  }): Promise<AmadeusFlightOffer[]> {
+    try {
+      console.log('[AmadeusFlightOffersService] 🔍 Querying database for flight offers:', {
+        origin: params.origin,
+        destination: params.destination,
+        departureDate: params.departureDate,
+        returnDate: params.returnDate,
+      });
+
+      const tripType = params.returnDate ? 'round-trip' : 'one-way';
+      
+      // Query from flight_prices table
+      const query = `
+        SELECT 
+          fp.*,
+          r.origin,
+          r.destination,
+          a.code as airline_code,
+          a.name as airline_name
+        FROM flight_prices fp
+        INNER JOIN routes r ON fp.route_id = r.id
+        INNER JOIN airlines a ON fp.airline_id = a.id
+        WHERE r.origin = $1
+          AND r.destination = $2
+          AND DATE(fp.departure_date) = DATE($3)
+          AND fp.trip_type = $4
+        ORDER BY fp.price ASC
+        LIMIT $5
+      `;
+      
+      const result = await pool.query(query, [
+        params.origin,
+        params.destination,
+        params.departureDate,
+        tripType,
+        params.max || 250
+      ]);
+      
+      console.log(`[AmadeusFlightOffersService] 📊 Found ${result.rows.length} flights in database`);
+      
+      // Transform database records to Amadeus format
+      const flightOffers: AmadeusFlightOffer[] = result.rows.map((row, index) => {
+        const departureDateTime = new Date(row.departure_date);
+        const [depHours, depMinutes] = row.departure_time.split(':');
+        departureDateTime.setHours(parseInt(depHours), parseInt(depMinutes), 0);
+        
+        const arrivalDateTime = new Date(departureDateTime);
+        arrivalDateTime.setMinutes(arrivalDateTime.getMinutes() + row.duration);
+        
+        const segments = [{
+          departure: {
+            iataCode: row.origin,
+            at: departureDateTime.toISOString(),
+          },
+          arrival: {
+            iataCode: row.destination,
+            at: arrivalDateTime.toISOString(),
+          },
+          carrierCode: row.airline_code,
+          number: row.flight_number.replace(row.airline_code, ''),
+          duration: `PT${Math.floor(row.duration / 60)}H${row.duration % 60}M`,
+        }];
+        
+        const itineraries = [{ duration: segments[0].duration, segments }];
+        
+        // Add return itinerary if round-trip
+        if (tripType === 'round-trip' && row.return_date) {
+          const returnDateTime = new Date(row.return_date);
+          returnDateTime.setHours(parseInt(depHours), parseInt(depMinutes), 0);
+          
+          const returnArrivalDateTime = new Date(returnDateTime);
+          returnArrivalDateTime.setMinutes(returnArrivalDateTime.getMinutes() + row.duration);
+          
+          itineraries.push({
+            duration: segments[0].duration,
+            segments: [{
+              departure: {
+                iataCode: row.destination,
+                at: returnDateTime.toISOString(),
+              },
+              arrival: {
+                iataCode: row.origin,
+                at: returnArrivalDateTime.toISOString(),
+              },
+              carrierCode: row.airline_code,
+              number: row.flight_number.replace(row.airline_code, ''),
+              duration: `PT${Math.floor(row.duration / 60)}H${row.duration % 60}M`,
+            }]
+          });
+        }
+        
+        return {
+          id: `db-${row.id}`,
+          price: {
+            total: row.price.toString(),
+            currency: row.currency || 'THB',
+          },
+          itineraries,
+          numberOfBookableSeats: 9,
+        };
+      });
+      
+      return flightOffers;
+    } catch (error) {
+      console.error('[AmadeusFlightOffersService] ❌ Database fallback failed:', error);
+      // Return empty array on database error (don't throw to prevent cascading failures)
+      return [];
+    }
   }
 }
 

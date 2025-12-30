@@ -1,9 +1,9 @@
 {
-  "timestamp": "2025-12-29T12:07:58.344Z",
+  "timestamp": "2025-12-30T08:00:08.199Z",
   "summary": {
     "total": 26,
-    "successful": 23,
-    "failed": 3
+    "successful": 25,
+    "failed": 1
   },
   "results": [
     {
@@ -11,7 +11,7 @@
       "method": "GET",
       "status": "success",
       "statusCode": 200,
-      "responseTime": 42,
+      "responseTime": 43,
       "message": "OK"
     },
     {
@@ -19,7 +19,7 @@
       "method": "GET",
       "status": "success",
       "statusCode": 200,
-      "responseTime": 1176,
+      "responseTime": 1366,
       "message": "OK"
     },
     {
@@ -35,7 +35,7 @@
       "method": "GET",
       "status": "success",
       "statusCode": 200,
-      "responseTime": 558,
+      "responseTime": 681,
       "message": "OK"
     },
     {
@@ -59,7 +59,7 @@
       "method": "POST",
       "status": "success",
       "statusCode": 200,
-      "responseTime": 1846,
+      "responseTime": 1171,
       "message": "OK"
     },
     {
@@ -67,7 +67,7 @@
       "method": "POST",
       "status": "success",
       "statusCode": 200,
-      "responseTime": 1113,
+      "responseTime": 122,
       "message": "OK"
     },
     {
@@ -75,7 +75,7 @@
       "method": "GET",
       "status": "success",
       "statusCode": 200,
-      "responseTime": 869,
+      "responseTime": 85,
       "message": "OK"
     },
     {
@@ -83,7 +83,7 @@
       "method": "GET",
       "status": "success",
       "statusCode": 200,
-      "responseTime": 5,
+      "responseTime": 3,
       "message": "OK"
     },
     {
@@ -91,39 +91,39 @@
       "method": "POST",
       "status": "success",
       "statusCode": 200,
-      "responseTime": 912,
+      "responseTime": 36,
       "message": "OK"
     },
     {
       "endpoint": "/flights/price-trend",
       "method": "POST",
-      "status": "error",
-      "statusCode": 404,
-      "responseTime": 3104,
-      "message": "Insufficient data for trend analysis"
+      "status": "success",
+      "statusCode": 200,
+      "responseTime": 90,
+      "message": "OK"
     },
     {
       "endpoint": "/flights/predict-price-range",
       "method": "POST",
       "status": "success",
       "statusCode": 200,
-      "responseTime": 1138,
+      "responseTime": 271,
       "message": "OK"
     },
     {
       "endpoint": "/flights/cheapest-dates",
       "method": "POST",
       "status": "error",
-      "statusCode": 500,
-      "responseTime": 1830,
-      "message": "Error"
+      "statusCode": 404,
+      "responseTime": 1134,
+      "message": "No flights found"
     },
     {
       "endpoint": "/flights/price-analysis",
       "method": "POST",
       "status": "success",
       "statusCode": 200,
-      "responseTime": 8659,
+      "responseTime": 8645,
       "message": "OK"
     },
     {
@@ -139,7 +139,7 @@
       "method": "GET",
       "status": "success",
       "statusCode": 200,
-      "responseTime": 3,
+      "responseTime": 2,
       "message": "OK"
     },
     {
@@ -147,7 +147,7 @@
       "method": "GET",
       "status": "success",
       "statusCode": 200,
-      "responseTime": 2,
+      "responseTime": 5,
       "message": "OK"
     },
     {
@@ -163,7 +163,7 @@
       "method": "GET",
       "status": "success",
       "statusCode": 200,
-      "responseTime": 583,
+      "responseTime": 631,
       "message": "OK"
     },
     {
@@ -171,23 +171,23 @@
       "method": "GET",
       "status": "success",
       "statusCode": 200,
-      "responseTime": 570,
+      "responseTime": 665,
       "message": "OK"
     },
     {
       "endpoint": "/destinations/inspiration",
       "method": "GET",
-      "status": "error",
-      "statusCode": 500,
-      "responseTime": 963,
-      "message": "Error"
+      "status": "success",
+      "statusCode": 200,
+      "responseTime": 1147,
+      "message": "OK"
     },
     {
       "endpoint": "/statistics/search",
       "method": "POST",
       "status": "success",
       "statusCode": 200,
-      "responseTime": 7,
+      "responseTime": 5,
       "message": "OK"
     },
     {
@@ -195,7 +195,7 @@
       "method": "POST",
       "status": "success",
       "statusCode": 200,
-      "responseTime": 6,
+      "responseTime": 5,
       "message": "OK"
     },
     {
@@ -203,7 +203,7 @@
       "method": "GET",
       "status": "success",
       "statusCode": 200,
-      "responseTime": 30,
+      "responseTime": 20,
       "message": "OK"
     },
     {
@@ -211,7 +211,7 @@
       "method": "GET",
       "status": "success",
       "statusCode": 200,
-      "responseTime": 4,
+      "responseTime": 6,
       "message": "OK"
     }
   ]
