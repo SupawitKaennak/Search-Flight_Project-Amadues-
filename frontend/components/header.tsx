@@ -22,7 +22,7 @@ export function Header() {
           <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
             <Plane className="w-6 h-6 text-primary-foreground" />
           </div>
-          <span className="text-xl font-bold text-foreground">Search Flight Project</span>
+          <span className="text-xl font-bold text-foreground">Flight Search</span>
         </div>
         
         <nav className="hidden md:flex items-center gap-6 absolute left-1/2 transform -translate-x-1/2">

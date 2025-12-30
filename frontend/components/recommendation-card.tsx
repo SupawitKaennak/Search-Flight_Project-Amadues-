@@ -2,7 +2,7 @@
 
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Info, TrendingDown, TrendingUp } from 'lucide-react'
+import { Info, TrendingDown, TrendingUp, Minus } from 'lucide-react'
 import { SeasonData } from '@/lib/flight-analysis'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { formatDateToUTCString } from '@/lib/utils'
@@ -189,7 +189,7 @@ export function RecommendationCard({ recommendedPeriod, seasons, currentSeason, 
             {isLowSeason ? (
               <TrendingDown className="w-7 h-7 text-white" />
             ) : isNormalSeason ? (
-              <TrendingUp className="w-7 h-7 text-white" />
+              <Minus className="w-7 h-7 text-white" />
             ) : (
               <TrendingUp className="w-7 h-7 text-white" />
             )}
@@ -292,35 +292,20 @@ export function RecommendationCard({ recommendedPeriod, seasons, currentSeason, 
           {currentSeason === 'low' ? (
             <>
               <p className="text-lg mb-4 leading-relaxed">
-                {'ช่วงที่แนะนำคือ'} <strong>{recommendedPeriod.startDate}</strong>
-                {recommendedPeriod.endDate && ` - ${recommendedPeriod.endDate}`}
-                {recommendedPeriod.returnDate && ` (กลับวันที่ ${recommendedPeriod.returnDate})`}
-                {' ('}
-                {recommendedPeriod.season === 'low' ? 'Low Season' : 
-                 recommendedPeriod.season === 'normal' ? 'Normal Season' : 'High Season'}
-                {')'}
+                {'ตอนนี้อยู่ในช่วง Low Season ราคาตั๋วเครื่องบินต่ำสุด เหมาะสำหรับการจองทันที'}
               </p>
-              <div className="grid md:grid-cols-3 gap-6">
-                <div>
-                  <div className="text-sm text-muted-foreground mb-1">
-                    {'ราคาไป-กลับ'}
-                    {searchParams?.passengerCount && searchParams.passengerCount > 1 && (
-                      <span className="ml-2 text-xs">
-                        ({searchParams.passengerCount} คน)
-                      </span>
-                    )}
-                  </div>
-                  {recommendedPeriod.price > 0 ? (
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="p-5 bg-background rounded-lg border">
+                  <div className="text-sm text-muted-foreground mb-2">{'ราคาปัจจุบัน (Low Season)'}</div>
+                  {(currentPrice > 0 || recommendedPeriod.price > 0) ? (
                     <>
-                      <div 
-                        className="text-2xl font-bold"
-                        style={{ color: '#4bb836' }}
-                      >
-                        {'฿'}{recommendedPeriod.price.toLocaleString()}
+                      <div className="text-2xl font-bold text-green-600">
+                        {'฿'}{(currentPrice > 0 ? currentPrice : recommendedPeriod.price).toLocaleString()}
                       </div>
-                      {searchParams?.passengerCount && searchParams.passengerCount > 1 && (
-                        <div className="text-xs text-muted-foreground mt-1">
-                          {'฿'}{Math.round(recommendedPeriod.price / searchParams.passengerCount).toLocaleString()} ต่อคน
+                      {(priceComparison?.baseAirline || recommendedPeriod.airline) && (
+                        <div className="text-sm text-muted-foreground mt-2">
+                          {'สายการบิน: '}
+                          <span className="font-semibold">{priceComparison?.baseAirline || recommendedPeriod.airline}</span>
                         </div>
                       )}
                     </>
@@ -330,36 +315,31 @@ export function RecommendationCard({ recommendedPeriod, seasons, currentSeason, 
                     </div>
                   )}
                 </div>
-                <div>
-                  <div className="text-sm text-muted-foreground mb-1">{'สายการบิน'}</div>
-                  <div className="text-lg font-semibold">{recommendedPeriod.airline || '-'}</div>
-                </div>
-                <div>
-                  <div className="text-sm text-muted-foreground mb-1">
-                    {'ประหยัดได้ถึง'}
-                    {searchParams?.passengerCount && searchParams.passengerCount > 1 && (
-                      <span className="ml-2 text-xs">
-                        ({searchParams.passengerCount} คน)
-                      </span>
-                    )}
-                  </div>
-                  {recommendedPeriod.savings > 0 ? (
-                    <>
-                      <div 
-                        className="text-2xl font-bold"
-                        style={{ color: '#4bb836' }}
-                      >
-                        {'฿'}{recommendedPeriod.savings.toLocaleString()}
-                      </div>
-                      {searchParams?.passengerCount && searchParams.passengerCount > 1 && (
-                        <div className="text-xs text-muted-foreground mt-1">
-                          {'฿'}{Math.round(recommendedPeriod.savings / searchParams.passengerCount).toLocaleString()} ต่อคน
-                        </div>
-                      )}
-                    </>
+                <div className="p-5 bg-background rounded-lg border">
+                  <div className="text-sm text-muted-foreground mb-2">{'เปรียบเทียบกับ Season อื่นๆ'}</div>
+                  {seasonComparisons.length > 0 ? (
+                    <div className="space-y-2">
+                      {seasonComparisons.map((comp) => {
+                        const lowSeasonPrice = currentPrice > 0 ? currentPrice : recommendedPeriod.price
+                        const isMoreExpensive = comp.price > lowSeasonPrice
+                        const difference = comp.price - lowSeasonPrice
+                        const percentage = lowSeasonPrice > 0 
+                          ? Math.round((difference / lowSeasonPrice) * 100) 
+                          : 0
+                        const compColor = comp.type === 'normal' ? 'text-blue-600' : 'text-red-600'
+                        return (
+                          <div key={comp.type} className="flex items-center justify-between text-sm">
+                            <span className="text-muted-foreground">{comp.name}:</span>
+                            <span className={`font-semibold ${compColor}`}>
+                              {isMoreExpensive ? 'แพงกว่า' : 'ถูกกว่า'} {Math.abs(percentage)}%
+                            </span>
+                          </div>
+                        )
+                      })}
+                    </div>
                   ) : (
                     <div className="text-sm text-muted-foreground">
-                      {'-'}
+                      {'ไม่มีข้อมูลเปรียบเทียบ'}
                     </div>
                   )}
                 </div>
@@ -433,48 +413,64 @@ export function RecommendationCard({ recommendedPeriod, seasons, currentSeason, 
                   </div>
                 </div>
               ) : (
-                <div className="p-5 bg-background rounded-lg border">
-                  <div className="text-sm text-muted-foreground mb-2">{'แนะนำจองในช่วง Low Season'}</div>
-                  <div 
-                    className="text-lg font-semibold mb-2"
-                    style={{ color: '#4bb836' }}
-                  >
-                    {lowSeasonMonths || 'พฤษภาคม - กันยายน'}
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div className="p-5 bg-background rounded-lg border">
+                    <div className="text-sm text-muted-foreground mb-2">{'แนะนำจองในช่วง Low Season'}</div>
+                    {lowSeasonData && (
+                      (lowSeasonData.priceRange.min > 0 && lowSeasonData.priceRange.max > 0) || 
+                      (lowSeasonData.bestDeal?.price && lowSeasonData.bestDeal.price > 0)
+                    ) ? (
+                      <>
+                        {lowSeasonData.priceRange.min > 0 && lowSeasonData.priceRange.max > 0 ? (
+                          <div className="text-sm text-muted-foreground mb-2">
+                            {'ราคา: ฿'}{lowSeasonData.priceRange.min.toLocaleString()}
+                            {' - ฿'}{lowSeasonData.priceRange.max.toLocaleString()}
+                          </div>
+                        ) : lowSeasonData.bestDeal?.price && lowSeasonData.bestDeal.price > 0 ? (
+                          <div className="text-2xl font-bold mb-2" style={{ color: '#4bb836' }}>
+                            {'฿'}{lowSeasonData.bestDeal.price.toLocaleString()}
+                          </div>
+                        ) : null}
+                        {lowSeasonData.bestDeal?.airline && (
+                          <div className="text-sm text-muted-foreground">
+                            {'สายการบินที่ถูกที่สุด: '}
+                            <span 
+                              className="font-semibold"
+                              style={{ color: '#4bb836' }}
+                            >
+                              {lowSeasonData.bestDeal.airline}
+                            </span>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="text-sm text-muted-foreground">
+                        {'ยังไม่มีข้อมูลราคาสำหรับ Low Season ในช่วงเวลานี้'}
+                        <br />
+                        <span className="text-xs">{'แนะนำให้ตรวจสอบข้อมูลใหม่ในภายหลัง'}</span>
+                      </div>
+                    )}
                   </div>
-                  {lowSeasonData && (
-                    (lowSeasonData.priceRange.min > 0 && lowSeasonData.priceRange.max > 0) || 
-                    (lowSeasonData.bestDeal?.price && lowSeasonData.bestDeal.price > 0)
-                  ) ? (
-                    <>
-                      {lowSeasonData.priceRange.min > 0 && lowSeasonData.priceRange.max > 0 ? (
-                        <div className="text-sm text-muted-foreground mb-2">
-                          {'ราคา: ฿'}{lowSeasonData.priceRange.min.toLocaleString()}
-                          {' - ฿'}{lowSeasonData.priceRange.max.toLocaleString()}
-                        </div>
-                      ) : lowSeasonData.bestDeal?.price && lowSeasonData.bestDeal.price > 0 ? (
-                        <div className="text-2xl font-bold mb-2" style={{ color: '#4bb836' }}>
-                          {'฿'}{lowSeasonData.bestDeal.price.toLocaleString()}
-                        </div>
-                      ) : null}
-                      {lowSeasonData.bestDeal?.airline && (
-                        <div className="text-sm text-muted-foreground">
-                          {'สายการบินที่ถูกที่สุด: '}
-                          <span 
-                            className="font-semibold"
-                            style={{ color: '#4bb836' }}
-                          >
-                            {lowSeasonData.bestDeal.airline}
-                          </span>
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <div className="text-sm text-muted-foreground">
-                      {'ยังไม่มีข้อมูลราคาสำหรับ Low Season ในช่วงเวลานี้'}
-                      <br />
-                      <span className="text-xs">{'แนะนำให้ตรวจสอบข้อมูลใหม่ในภายหลัง'}</span>
-                    </div>
-                  )}
+                  <div className="p-5 bg-background rounded-lg border">
+                    <div className="text-sm text-muted-foreground mb-2">{'ราคาปัจจุบัน (Normal Season)'}</div>
+                    {currentPrice > 0 ? (
+                      <>
+                      <div className="text-2xl font-bold text-blue-600">
+                        {'฿'}{currentPrice.toLocaleString()}
+                      </div>
+                        {priceComparison?.baseAirline && (
+                          <div className="text-sm text-muted-foreground mt-2">
+                            {'สายการบิน: '}
+                            <span className="font-semibold">{priceComparison.baseAirline}</span>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="text-sm text-muted-foreground">
+                        {'กำลังรอข้อมูลราคา'}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </>

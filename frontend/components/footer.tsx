@@ -23,7 +23,7 @@ export function Footer() {
                 <Plane className="w-7 h-7 text-white" />
               </div>
               <span className="text-xl font-bold text-white">
-                Search Flight Project
+                Flight Search
               </span>
             </div>
 

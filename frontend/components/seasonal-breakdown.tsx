@@ -2,7 +2,7 @@
 
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { TrendingDown, Info, AlertCircle, TrendingUp } from 'lucide-react'
+import { TrendingDown, Info, AlertCircle, TrendingUp, Minus } from 'lucide-react'
 import { SeasonData } from '@/lib/flight-analysis'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -170,7 +170,7 @@ export function SeasonalBreakdown({ seasons: propSeasons, recommendedPeriod, des
           bgColor: 'bg-blue-500/5',
           iconBg: 'bg-blue-500',
           iconColor: 'text-white',
-          icon: TrendingUp,
+          icon: Minus,
           badgeBg: 'bg-blue-500 text-white',
           badgeText: 'Normal Season',
           priceColor: 'text-blue-600',

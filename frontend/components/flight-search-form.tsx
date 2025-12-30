@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Search, Calendar as CalendarIcon, ArrowLeftRight } from 'lucide-react'
+import { Search, Calendar as CalendarIcon, ArrowLeftRight, User, Users, Baby, ChevronUp, Plus, Minus } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -13,6 +13,14 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+} from '@/components/ui/dialog'
 import { format } from 'date-fns'
 import { DateRange } from 'react-day-picker'
 import {
@@ -52,7 +60,12 @@ export function FlightSearchForm({ onSearch }: FlightSearchFormProps) {
     from: undefined,
     to: undefined,
   })
-  const [passengerCount, setPassengerCount] = useState('1')
+  const [passengers, setPassengers] = useState({
+    adults: 1,
+    children: 0,
+    infants: 0,
+  })
+  const [isPassengerDialogOpen, setIsPassengerDialogOpen] = useState(false)
   const [errors, setErrors] = useState<{
     destination?: string
     passengerCount?: string
@@ -95,9 +108,76 @@ export function FlightSearchForm({ onSearch }: FlightSearchFormProps) {
     }
   }
 
-  // Handle passenger count change
-  const handlePassengerCountChange = (value: string) => {
-    setPassengerCount(value)
+  // Calculate total passengers
+  const totalPassengers = passengers.adults + passengers.children + passengers.infants
+
+  // Format passenger summary text
+  const getPassengerSummary = () => {
+    const parts: string[] = []
+    if (passengers.adults > 0) {
+      parts.push(`${passengers.adults} ${passengers.adults === 1 ? 'ผู้ใหญ่' : 'ผู้ใหญ่'}`)
+    }
+    if (passengers.children > 0) {
+      parts.push(`${passengers.children} ${passengers.children === 1 ? 'เด็ก' : 'เด็ก'}`)
+    }
+    if (passengers.infants > 0) {
+      parts.push(`${passengers.infants} ${passengers.infants === 1 ? 'ทารก' : 'ทารก'}`)
+    }
+    return parts.length > 0 ? parts.join(', ') : '1 ผู้ใหญ่'
+  }
+
+  // Check if can add more passengers (max 7 total)
+  const canAddPassenger = (type: 'adults' | 'children' | 'infants') => {
+    const currentTotal = totalPassengers
+    if (currentTotal >= 7) return false
+    
+    // Must have at least 1 adult before adding children or infants
+    if ((type === 'children' || type === 'infants') && passengers.adults === 0) {
+      return false
+    }
+    
+    // Special check for infants - cannot exceed adults
+    if (type === 'infants' && passengers.infants >= passengers.adults) {
+      return false
+    }
+    
+    return true
+  }
+
+  // Handle passenger increment/decrement
+  const handlePassengerChange = (type: 'adults' | 'children' | 'infants', delta: number) => {
+    setPassengers(prev => {
+      const newValue = Math.max(0, prev[type] + delta)
+      
+      // Must have at least 1 adult at all times
+      if (type === 'adults' && newValue === 0) {
+        // Cannot reduce adults to 0 if there are children or infants
+        if (prev.children > 0 || prev.infants > 0) {
+          return prev
+        }
+        // Cannot reduce to 0 even if no children/infants (must have at least 1)
+        return prev
+      }
+      
+      // Cannot add children or infants without at least 1 adult
+      if ((type === 'children' || type === 'infants') && prev.adults === 0 && delta > 0) {
+        return prev
+      }
+      
+      // Infants cannot exceed adults
+      if (type === 'infants' && newValue > prev.adults) {
+        return prev
+      }
+      
+      // Check total passengers limit (max 7)
+      const currentTotal = prev.adults + prev.children + prev.infants
+      const newTotal = currentTotal - prev[type] + newValue
+      if (newTotal > 7) {
+        return prev
+      }
+      
+      return { ...prev, [type]: newValue }
+    })
     if (errors.passengerCount) {
       setErrors(prev => ({ ...prev, passengerCount: undefined }))
     }
@@ -147,7 +227,7 @@ export function FlightSearchForm({ onSearch }: FlightSearchFormProps) {
       hasError = true
     }
     
-    if (!passengerCount) {
+    if (totalPassengers === 0) {
       newErrors.passengerCount = 'เพิ่มจำนวนผู้โดยสาร'
       hasError = true
     }
@@ -220,7 +300,7 @@ export function FlightSearchForm({ onSearch }: FlightSearchFormProps) {
       startDate,
       endDate,
       tripType,
-      passengerCount: parseInt(passengerCount) || 1, // แปลง string เป็น number
+      passengerCount: totalPassengers,
     }
     
     onSearch?.(searchParams)
@@ -458,26 +538,158 @@ export function FlightSearchForm({ onSearch }: FlightSearchFormProps) {
 
         <div className="relative flex-1 min-w-0">
           <Label htmlFor="passengers" className="text-sm font-medium text-gray-700 mb-1.5 block">{'จำนวนผู้โดยสาร'}</Label>
-          <Select value={passengerCount} onValueChange={handlePassengerCountChange}>
-            <SelectTrigger 
-              id="passengers" 
-              aria-invalid={!!errors.passengerCount}
-              className={`bg-white w-full !h-14 !min-h-[56px] min-w-0 ${
-                errors.passengerCount 
-                  ? 'border-[#ff6b35] focus-visible:border-[#ff6b35] focus-visible:ring-[#ff6b35]/50' 
-                  : 'border-gray-300'
-              }`}
-            >
-              <SelectValue placeholder="เลือกจำนวน" />
-            </SelectTrigger>
-            <SelectContent>
-              {Array.from({ length: 9 }, (_, i) => i + 1).map((num) => (
-                <SelectItem key={num} value={num.toString()}>
-                  {num} {num === 1 ? 'คน' : 'คน'}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Dialog open={isPassengerDialogOpen} onOpenChange={setIsPassengerDialogOpen}>
+            <DialogTrigger asChild>
+              <Button
+                id="passengers"
+                variant="outline"
+                aria-invalid={!!errors.passengerCount}
+                className={`bg-white justify-between text-left font-normal text-sm w-full h-14 ${
+                  errors.passengerCount 
+                    ? 'border-[#ff6b35] focus-visible:border-[#ff6b35] focus-visible:ring-[#ff6b35]/50' 
+                    : 'border-gray-300'
+                }`}
+              >
+                <span className="truncate">{getPassengerSummary()}</span>
+                <ChevronUp className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>จำนวนผู้โดยสาร</DialogTitle>
+              </DialogHeader>
+              
+              {totalPassengers >= 7 && (
+                <div className="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-2 rounded text-sm">
+                  ถึงขีดจำกัดสูงสุด 7 คนแล้ว
+                </div>
+              )}
+              {totalPassengers < 7 && (
+                <div className="text-sm text-gray-500 px-1">
+                  เหลืออีก {7 - totalPassengers} ที่ (สูงสุด 7 คน)
+                </div>
+              )}
+              
+              <div className="space-y-6 py-4">
+                {/* Adults */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3 flex-1">
+                    <User className="h-6 w-6 text-gray-600" />
+                    <div>
+                      <div className="font-medium text-gray-900">ผู้ใหญ่</div>
+                      <div className="text-sm text-gray-500">อายุ 12 ปีขึ้นไป</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8 rounded-full"
+                      onClick={() => handlePassengerChange('adults', -1)}
+                      disabled={passengers.adults <= 1}
+                    >
+                      <Minus className="h-4 w-4" />
+                    </Button>
+                    <span className="w-8 text-center font-medium text-gray-900 underline">
+                      {passengers.adults}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8 rounded-full border-blue-500 text-blue-500 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      onClick={() => handlePassengerChange('adults', 1)}
+                      disabled={!canAddPassenger('adults')}
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Children */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3 flex-1">
+                    <Users className="h-6 w-6 text-gray-600" />
+                    <div>
+                      <div className="font-medium text-gray-900">เด็ก</div>
+                      <div className="text-sm text-gray-500">อายุ 2 - 11 ปี</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8 rounded-full"
+                      onClick={() => handlePassengerChange('children', -1)}
+                      disabled={passengers.children === 0}
+                    >
+                      <Minus className="h-4 w-4" />
+                    </Button>
+                    <span className="w-8 text-center font-medium text-gray-900 underline">
+                      {passengers.children}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8 rounded-full border-blue-500 text-blue-500 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      onClick={() => handlePassengerChange('children', 1)}
+                      disabled={!canAddPassenger('children')}
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Infants */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3 flex-1">
+                    <Baby className="h-6 w-6 text-gray-600" />
+                    <div>
+                      <div className="font-medium text-gray-900">ทารก (บนตัก)</div>
+                      <div className="text-sm text-gray-500">อายุต่ำกว่า 2 ปี</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8 rounded-full"
+                      onClick={() => handlePassengerChange('infants', -1)}
+                      disabled={passengers.infants === 0}
+                    >
+                      <Minus className="h-4 w-4" />
+                    </Button>
+                    <span className="w-8 text-center font-medium text-gray-900 underline">
+                      {passengers.infants}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8 rounded-full border-blue-500 text-blue-500 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      onClick={() => handlePassengerChange('infants', 1)}
+                      disabled={!canAddPassenger('infants')}
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button
+                  onClick={() => setIsPassengerDialogOpen(false)}
+                  className="w-full bg-blue-500 hover:bg-blue-600 text-white"
+                >
+                  เสร็จสิ้น
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
           {errors.passengerCount && (
             <div className="absolute top-full left-0 right-0 z-50 mt-1">
               <div className="absolute -top-1 left-4 w-0 h-0 border-l-[6px] border-r-[6px] border-b-[6px] border-l-transparent border-r-transparent border-b-[#ff6b35]" />
