@@ -209,23 +209,49 @@ function calculateArrivalTime(departureTime: string, durationMinutes: number): s
 }
 
 /**
- * Calculate raw price (base price only, no multipliers)
- * Multipliers (season, airline, holiday) will be applied by the system after season calculation
+ * Get seasonal price multiplier based on month
+ * This creates realistic price variation to enable proper season calculation
+ * High season (Nov-Feb): 1.3-1.5x
+ * Low season (May-Oct): 0.7-0.9x  
+ * Normal season (Mar-Apr): 0.9-1.1x
+ */
+function getSeasonalMultiplier(month: number): number {
+  // High season: November (11), December (12), January (1), February (2)
+  if (month === 11 || month === 12 || month === 1 || month === 2) {
+    return 1.3 + Math.random() * 0.2; // 1.3-1.5x
+  }
+  
+  // Low season: May (5) - October (10)
+  if (month >= 5 && month <= 10) {
+    return 0.7 + Math.random() * 0.2; // 0.7-0.9x
+  }
+  
+  // Normal season: March (3), April (4)
+  return 0.9 + Math.random() * 0.2; // 0.9-1.1x
+}
+
+/**
+ * Calculate raw price with seasonal variation
+ * Applies seasonal multiplier to create realistic price differences between months
  */
 function calculateRawPrice(
   basePrice: number,
-  tripType: 'one-way' | 'round-trip'
+  tripType: 'one-way' | 'round-trip',
+  date: Date
 ): number {
   let price = basePrice;
   
+  // Apply seasonal multiplier based on month
+  const month = date.getMonth() + 1; // 1-12
+  const seasonalMultiplier = getSeasonalMultiplier(month);
+  price *= seasonalMultiplier;
+  
   // Round-trip is typically 1.8x one-way (not 2x due to discounts)
-  // This is the only multiplier we apply at data generation time
   if (tripType === 'round-trip') {
     price *= 1.8;
   }
   
   // Add small random variation (±2-3%) for realism
-  // This simulates natural price variation without affecting season calculation
   const variation = 0.98 + Math.random() * 0.04; // 0.98-1.02 (±2%)
   price *= variation;
   
@@ -346,9 +372,9 @@ async function generateFlightPrices(
       const basePrice = calculateBasePrice(distance);
       
       // Generate one-way flight
-      // Store raw price (base_price only, no multipliers)
-      // System will calculate season from raw prices and apply multipliers
-      const oneWayPrice = calculateRawPrice(basePrice, 'one-way');
+      // Store raw price with seasonal variation
+      // System will calculate season from these prices
+      const oneWayPrice = calculateRawPrice(basePrice, 'one-way', date);
       const departureTime = generateDepartureTime();
       const duration = calculateDuration(distance);
       const arrivalTime = calculateArrivalTime(departureTime, duration);
@@ -375,8 +401,8 @@ async function generateFlightPrices(
       // Generate round-trip flight (return after 7 days)
       const returnDate = addDays(date, 7);
       if (returnDate <= endDate) {
-        // Round-trip: price = base_price × 1.8 (raw price with round-trip discount only)
-        const roundTripPrice = calculateRawPrice(basePrice, 'round-trip');
+        // Round-trip: price with seasonal variation and round-trip discount
+        const roundTripPrice = calculateRawPrice(basePrice, 'round-trip', date);
         const departureTime2 = generateDepartureTime();
         const duration2 = calculateDuration(distance);
         const arrivalTime2 = calculateArrivalTime(departureTime2, duration2);
