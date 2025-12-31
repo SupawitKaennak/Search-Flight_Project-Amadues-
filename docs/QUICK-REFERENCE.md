@@ -7,13 +7,20 @@
 ## 🚀 Start/Stop Servers
 
 ```bash
-# Start Backend
+# Start Database (Docker) 🐳
 cd backend
+docker-compose up -d
+
+# Start Backend
 npm run dev
 
 # Start Frontend  
 cd frontend
 npm run dev
+
+# Stop Database
+cd backend
+docker-compose down
 
 # Kill Backend (Windows)
 $process = Get-NetTCPConnection -LocalPort 3001 -ErrorAction SilentlyContinue | Where-Object {$_.State -eq "Listen"} | Select-Object -ExpandProperty OwningProcess -First 1; if ($process) { Stop-Process -Id $process -Force }
@@ -27,6 +34,13 @@ $process = Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue | 
 ## 🗄️ Database Commands
 
 ### Connect to Database
+
+**Docker (แนะนำ):**
+```bash
+docker exec -it flight_search_db psql -U postgres -d flight_search
+```
+
+**PostgreSQL แบบติดตั้งเอง:**
 ```bash
 psql -U postgres -d flight_search
 ```
@@ -272,8 +286,9 @@ Backend:
   - Services: backend/src/services/
   - Models: backend/src/models/
   - Migrations: backend/src/database/migrations/
-  - Scripts: backend/src/scripts/
+  - Scripts: backend/src/scripts/ (see 04-SCRIPTS-REFERENCE.md)
   - Data: backend/data/
+  - Docker: backend/docker-compose.yml
 
 Frontend:
   - Pages: frontend/app/
@@ -281,9 +296,11 @@ Frontend:
   - Utils: frontend/lib/
 
 Docs:
-  - Getting Started: docs/01-GETTING-STARTED.md
+  - Getting Started: docs/01-GETTING-STARTED.md (with Docker setup)
   - SQL Commands: docs/02-SQL-COMMANDS.md
   - System Docs: docs/03-SYSTEM-DOCUMENTATION.md
+  - Scripts Guide: docs/04-SCRIPTS-REFERENCE.md ⭐ NEW!
+  - Quick Reference: docs/QUICK-REFERENCE.md
 ```
 
 ---

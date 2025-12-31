@@ -28,9 +28,17 @@
    - Download: https://nodejs.org/
    - Verify: `node --version`
 
-2. **PostgreSQL** (v14+ with TimescaleDB extension)
+2. **Docker Desktop** (แนะนำ - สำหรับรัน PostgreSQL)
+   - Download: https://www.docker.com/products/docker-desktop
+   - Verify: `docker --version` และ `docker-compose --version`
+   - รวม PostgreSQL 18 + TimescaleDB อัตโนมัติ
+
+   **หรือ**
+
+   **PostgreSQL แบบติดตั้งเอง** (ถ้าไม่ใช้ Docker)
    - Download: https://www.postgresql.org/download/
    - Verify: `psql --version`
+   - ต้องติดตั้ง TimescaleDB extension เพิ่มเติม
 
 3. **Git**
    - Download: https://git-scm.com/
@@ -71,7 +79,47 @@ npm install
 
 ## 🗄️ Database Setup
 
-### 1. Create Database
+### วิธีที่ 1: Docker Compose (แนะนำ) 🐳
+
+**ง่ายและรวดเร็วที่สุด!** PostgreSQL 18 + TimescaleDB พร้อมใช้งานทันที
+
+```bash
+cd backend
+
+# Start PostgreSQL with TimescaleDB
+docker-compose up -d
+
+# ตรวจสอบว่า container รันแล้ว
+docker ps
+
+# Should see:
+# CONTAINER ID   IMAGE                              STATUS
+# xxxx          timescale/timescaledb:latest-pg18   Up
+```
+
+**Database จะพร้อมใช้งานที่:**
+- Host: `localhost`
+- Port: `5432`
+- Database: `flight_search`
+- User: `postgres`
+- Password: `postgres`
+
+**คำสั่งที่มีประโยชน์:**
+```bash
+# Stop database
+docker-compose down
+
+# Stop และลบข้อมูล
+docker-compose down -v
+
+# ดู logs
+docker-compose logs -f postgres
+
+# เข้า psql ใน container
+docker exec -it flight_search_db psql -U postgres -d flight_search
+```
+
+### วิธีที่ 2: PostgreSQL แบบติดตั้งเอง
 
 เปิด PostgreSQL และสร้าง database:
 
@@ -96,7 +144,7 @@ CREATE DATABASE flight_search;
 CREATE EXTENSION IF NOT EXISTS timescaledb;
 ```
 
-### 2. Run Migrations
+### Run Migrations (ทั้ง 2 วิธี)
 
 ```bash
 cd backend
@@ -105,6 +153,17 @@ npm run migrate
 
 หรือรัน migration ทีละไฟล์:
 
+**ถ้าใช้ Docker:**
+```bash
+# Windows PowerShell
+cd backend
+Get-ChildItem -Path ".\src\database\migrations\*.sql" | Sort-Object Name | ForEach-Object {
+    Write-Host "Running migration: $($_.Name)"
+    Get-Content $_.FullName | docker exec -i flight_search_db psql -U postgres -d flight_search
+}
+```
+
+**ถ้าติดตั้ง PostgreSQL เอง:**
 ```bash
 # Windows PowerShell
 Get-ChildItem -Path ".\src\database\migrations\*.sql" | Sort-Object Name | ForEach-Object {
@@ -113,7 +172,7 @@ Get-ChildItem -Path ".\src\database\migrations\*.sql" | Sort-Object Name | ForEa
 }
 ```
 
-### 3. Verify Database Schema
+### Verify Database Schema
 
 ```sql
 -- Check tables

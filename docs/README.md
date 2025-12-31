@@ -12,9 +12,9 @@
 เหมาะสำหรับ: นักพัฒนาที่เข้ามาใหม่หรือต้องการ setup โปรเจคตั้งแต่เริ่มต้น
 
 **เนื้อหา:**
-- ✅ Prerequisites (Node.js, PostgreSQL, Git)
+- ✅ Prerequisites (Node.js, **Docker**, Git)
 - ✅ Initial Setup (Clone, Install dependencies)
-- ✅ Database Setup (Create database, Run migrations)
+- ✅ **Database Setup (Docker Compose - ง่ายที่สุด!)** 🐳
 - ✅ Environment Configuration (.env files)
 - ✅ Running the Project (Backend + Frontend)
 - ✅ Data Import (Weather, Holidays)
@@ -101,6 +101,45 @@ seasonScore ≥ p67 → High Season
 
 ---
 
+### [04-SCRIPTS-REFERENCE.md](./04-SCRIPTS-REFERENCE.md) ⭐ NEW!
+**คู่มือ Scripts ทั้งหมด** 🔧
+
+เหมาะสำหรับ: นักพัฒนาที่ต้องการ fetch ข้อมูล, import ข้อมูล หรือจัดการระบบ
+
+**เนื้อหา:**
+- 🌐 **Data Fetching Scripts**
+  - `fetch-weather-to-csv.ts` - ดึงข้อมูลสภาพอากาศ (Open-Meteo)
+  - `fetch-holidays-to-csv.ts` - ดึงข้อมูลวันหยุด (iApp API)
+- 📥 **Data Import Scripts**
+  - `import-weather-from-csv.ts` - Import weather CSV
+- 🎲 **Data Generation Scripts**
+  - `generate-mock-flights.ts` - สร้าง mock flights
+- 🔄 **Maintenance Scripts**
+  - `sync-amadeus-flights.ts` - Sync จาก Amadeus
+  - `update-airline-names.ts` - Update airline info
+- 🧪 **Testing Scripts**
+  - `test-api-endpoints.ts` - ทดสอบ API
+
+**ตัวอย่างคำสั่งสำคัญ:**
+
+```bash
+# Fetch weather data (5 years)
+npm run fetch:weather -- --start-year=2020 --end-year=2024 --import
+
+# Fetch holidays
+npm run fetch:holidays -- --start-year=2024 --end-year=2026 --import
+
+# Generate mock flights (1 year)
+npm run generate:mock-flights -- --days-back=180 --days-forward=180
+
+# Import weather CSV
+npm run import:weather
+```
+
+**ดูเพิ่มเติม:** [04-SCRIPTS-REFERENCE.md](./04-SCRIPTS-REFERENCE.md)
+
+---
+
 ## 🎯 Quick Start Guide
 
 ### สำหรับนักพัฒนาใหม่
@@ -153,9 +192,10 @@ Search-Flight_Project/
 │   │   ├── services/         # Business logic
 │   │   ├── models/           # Database models
 │   │   ├── database/         # Migrations
-│   │   ├── scripts/          # Utility scripts
+│   │   ├── scripts/          # 🔧 Utility scripts (see 04-SCRIPTS-REFERENCE.md)
 │   │   └── server.ts         # Entry point
 │   ├── data/                 # CSV files (weather, holidays)
+│   ├── docker-compose.yml    # 🐳 PostgreSQL + TimescaleDB
 │   └── package.json
 ├── frontend/
 │   ├── app/                  # Next.js app router
@@ -164,9 +204,11 @@ Search-Flight_Project/
 │   └── package.json
 └── docs/                     # 📚 You are here!
     ├── README.md             # This file
-    ├── 01-GETTING-STARTED.md
-    ├── 02-SQL-COMMANDS.md
-    └── 03-SYSTEM-DOCUMENTATION.md
+    ├── 01-GETTING-STARTED.md # Setup guide with Docker
+    ├── 02-SQL-COMMANDS.md    # SQL reference
+    ├── 03-SYSTEM-DOCUMENTATION.md  # Architecture & APIs
+    ├── 04-SCRIPTS-REFERENCE.md     # ⭐ Scripts guide (NEW!)
+    └── QUICK-REFERENCE.md    # Cheat sheet
 ```
 
 ---
