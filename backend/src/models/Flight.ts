@@ -14,6 +14,7 @@ export interface FlightPriceRecord {
   flight_number: string;
   trip_type: 'one-way' | 'round-trip';
   season: 'high' | 'normal' | 'low';
+  travel_class?: 'economy' | 'business' | 'first';
   created_at: Date;
   updated_at: Date;
 }
@@ -47,7 +48,8 @@ export class FlightModel {
     startDate: Date,
     endDate?: Date,
     tripType: 'one-way' | 'round-trip' = 'round-trip',
-    airlineIds?: number[]
+    airlineIds?: number[],
+    travelClass: 'economy' | 'business' | 'first' = 'economy'
   ): Promise<FlightPriceRecord[]> {
     // Calculate endDate if not provided (default to 180 days)
     const finalEndDate = endDate || (() => {
@@ -80,7 +82,27 @@ export class FlightModel {
       endDateISO: finalEndDate.toISOString(),
       tripType,
       airlineIds: airlineIds?.length || 0,
+      travelClass,
     });
+
+    // Check if travel_class column exists
+    const columnExistsQuery = `
+      SELECT EXISTS (
+        SELECT 1 
+        FROM information_schema.columns 
+        WHERE table_name = 'flight_prices' 
+        AND column_name = 'travel_class'
+      ) as exists;
+    `;
+    
+    let hasTravelClassColumn = false;
+    try {
+      const columnCheck = await pool.query(columnExistsQuery);
+      hasTravelClassColumn = columnCheck.rows[0]?.exists || false;
+    } catch (error) {
+      // If check fails, assume column doesn't exist
+      hasTravelClassColumn = false;
+    }
 
     let query = `
       SELECT 
@@ -102,6 +124,15 @@ export class FlightModel {
 
     const params: any[] = [origin, destination, startDateStr, endDateStr, tripType];
     let paramIndex = 6;
+
+    // Only filter by travel_class if column exists
+    // Always query economy data from DB (since DB currently only has economy)
+    // Service layer will apply multiplier for business/first class
+    if (hasTravelClassColumn) {
+      query += ` AND COALESCE(fp.travel_class, 'economy') = $${paramIndex}`;
+      params.push('economy'); // Always query economy data, multiplier applied in service layer
+      paramIndex++;
+    }
 
     if (airlineIds && airlineIds.length > 0) {
       query += ` AND fp.airline_id = ANY($${paramIndex})`;

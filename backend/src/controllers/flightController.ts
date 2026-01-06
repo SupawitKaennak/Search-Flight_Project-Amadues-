@@ -69,6 +69,13 @@ export async function analyzeFlightPrices(
   try {
     const params: AnalyzeFlightPricesRequest = req.body;
 
+    // Debug: Log travel class from request body
+    console.log('[FlightController] Request body travelClass:', {
+      travelClass: req.body?.travelClass,
+      hasTravelClass: 'travelClass' in (req.body || {}),
+      allKeys: Object.keys(req.body || {}),
+    });
+
     const result = await flightAnalysisService.analyzeFlightPrices(params);
 
     res.json(result);
@@ -83,6 +90,7 @@ export async function analyzeFlightPrices(
         tripType: req.body?.tripType,
         passengerCount: req.body?.passengerCount,
         selectedAirlines: req.body?.selectedAirlines,
+        travelClass: req.body?.travelClass,
       },
     });
     next(error);
@@ -108,6 +116,7 @@ export async function getFlightPrices(
       tripType,
       passengerCount,
       selectedAirlines,
+      travelClass = 'economy',
     } = params;
 
     // Convert province/country values to airport codes using Amadeus
@@ -145,22 +154,49 @@ export async function getFlightPrices(
       startDateObj,
       endDateObj,
       tripType,
-      airlineIds
+      airlineIds,
+      travelClass
     );
 
     // Transform to response format
-    // Prices from Amadeus are already final prices, no multipliers needed
-    const flightPrices = flightRecords.map((fp) => ({
-      airline: fp.airline_name_th || fp.airline_name,
-      airline_code: fp.airline_code || '',
-      airline_name: fp.airline_name || '',
-      airline_name_th: fp.airline_name_th || '',
-      price: Math.round(fp.price * passengerCount),
-      departureTime: fp.departure_time,
-      arrivalTime: fp.arrival_time,
-      duration: fp.duration,
-      flightNumber: fp.flight_number,
-    }));
+    // Apply travel class multiplier to economy prices
+    // Database currently only has economy data, so always apply multiplier for business/first
+    const travelClassMultipliers: Record<'economy' | 'business' | 'first', number> = {
+      economy: 1.0,
+      business: 2.5,
+      first: 4.0,
+    };
+    const travelClassMultiplier = travelClassMultipliers[travelClass] || 1.0;
+    
+    const flightPrices = flightRecords.map((fp) => {
+      const fpTravelClass = (fp.travel_class || 'economy') as 'economy' | 'business' | 'first';
+      
+      // Calculate multiplier based on travel class conversion
+      // If DB has the exact travel_class, use 1.0, otherwise convert from economy
+      let priceMultiplier = 1.0;
+      if (fpTravelClass === travelClass) {
+        // Database already has correct travel_class data
+        priceMultiplier = 1.0;
+      } else {
+        // Convert from database travel_class to selected travel_class
+        const fromMultiplier = travelClassMultipliers[fpTravelClass] || 1.0;
+        const toMultiplier = travelClassMultipliers[travelClass] || 1.0;
+        priceMultiplier = toMultiplier / fromMultiplier;
+      }
+      
+      return {
+        airline: fp.airline_name_th || fp.airline_name,
+        airline_code: fp.airline_code || '',
+        airline_name: fp.airline_name || '',
+        airline_name_th: fp.airline_name_th || '',
+        price: Math.round(fp.price * priceMultiplier * passengerCount),
+        departureTime: fp.departure_time,
+        arrivalTime: fp.arrival_time,
+        duration: fp.duration,
+        flightNumber: fp.flight_number,
+        travelClass: travelClass,
+      };
+    });
 
     res.json(flightPrices);
   } catch (error: any) {
@@ -172,6 +208,7 @@ export async function getFlightPrices(
         endDate: req.body?.endDate,
         tripType: req.body?.tripType,
         passengerCount: req.body?.passengerCount,
+        travelClass: req.body?.travelClass,
         selectedAirlines: req.body?.selectedAirlines,
       },
     });

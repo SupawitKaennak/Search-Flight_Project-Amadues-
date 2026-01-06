@@ -36,6 +36,7 @@ export const analyzeFlightPricesSchema = z.object({
   endDate: z.string().optional(),
   tripType: z.enum(['one-way', 'round-trip']).nullable().optional(),
   passengerCount: z.number().min(1).default(1),
+  travelClass: z.enum(['economy', 'business', 'first']).optional().default('economy'),
 });
 
 export const flightPriceParamsSchema = z.object({
@@ -46,6 +47,7 @@ export const flightPriceParamsSchema = z.object({
   tripType: z.enum(['one-way', 'round-trip']),
   passengerCount: z.number().min(1),
   selectedAirlines: z.array(z.string()).default([]),
+  travelClass: z.enum(['economy', 'business', 'first']).optional().default('economy'),
 });
 
 export const getAirlinesQuerySchema = z.object({

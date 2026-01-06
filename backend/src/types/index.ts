@@ -8,6 +8,7 @@ export interface FlightPriceParams {
   tripType: 'one-way' | 'round-trip';
   passengerCount: number;
   selectedAirlines: string[];
+  travelClass?: 'economy' | 'business' | 'first';
 }
 
 export interface FlightPrice {
@@ -28,6 +29,7 @@ export interface AnalyzeFlightPricesRequest {
   endDate?: string;
   tripType?: 'one-way' | 'round-trip' | null;
   passengerCount: number;
+  travelClass?: 'economy' | 'business' | 'first';
 }
 
 export interface SeasonData {

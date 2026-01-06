@@ -65,6 +65,7 @@ export function FlightSearchForm({ onSearch }: FlightSearchFormProps) {
     children: 0,
     infants: 0,
   })
+  const [travelClass, setTravelClass] = useState<string>('economy')
   const [isPassengerDialogOpen, setIsPassengerDialogOpen] = useState(false)
   const [errors, setErrors] = useState<{
     destination?: string
@@ -123,7 +124,17 @@ export function FlightSearchForm({ onSearch }: FlightSearchFormProps) {
     if (passengers.infants > 0) {
       parts.push(`${passengers.infants} ${passengers.infants === 1 ? 'ทารก' : 'ทารก'}`)
     }
-    return parts.length > 0 ? parts.join(', ') : '1 ผู้ใหญ่'
+    const passengerText = parts.length > 0 ? parts.join(', ') : '1 ผู้ใหญ่'
+    
+    // Add travel class
+    const classNames: Record<string, string> = {
+      economy: 'ชั้นประหยัด',
+      business: 'ชั้นธุรกิจ',
+      first: 'ชั้นหนึ่ง',
+    }
+    const className = classNames[travelClass] || 'ชั้นประหยัด'
+    
+    return `${passengerText} - ${className}`
   }
 
   // Check if can add more passengers (max 7 total)
@@ -677,6 +688,23 @@ export function FlightSearchForm({ onSearch }: FlightSearchFormProps) {
                       <Plus className="h-4 w-4" />
                     </Button>
                   </div>
+                </div>
+
+                {/* Travel Class */}
+                <div className="flex items-center justify-between pt-2 border-t">
+                  <div className="flex-1">
+                    <div className="font-medium text-gray-900 mb-2">ชั้นโดยสาร</div>
+                  </div>
+                  <Select value={travelClass} onValueChange={setTravelClass}>
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue placeholder="เลือกชั้นโดยสาร" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="economy">ชั้นประหยัด</SelectItem>
+                      <SelectItem value="business">ชั้นธุรกิจ</SelectItem>
+                      <SelectItem value="first">ชั้นหนึ่ง</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 

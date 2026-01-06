@@ -21,6 +21,7 @@ async function getMigrations(): Promise<Migration[]> {
     { name: '006_update_flight_prices_unique_constraint', file: '006_update_flight_prices_unique_constraint.sql' },
     { name: '007_create_demand_and_price_metrics', file: '007_create_demand_and_price_metrics.sql' },
     { name: '008_create_weather_and_holiday_statistics', file: '008_create_weather_and_holiday_statistics.sql' },
+    { name: '009_add_travel_class', file: '009_add_travel_class.sql' },
   ];
 }
 
