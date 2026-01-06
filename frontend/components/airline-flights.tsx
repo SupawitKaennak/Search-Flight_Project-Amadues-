@@ -294,6 +294,7 @@ export function AirlineFlights({ searchParams, selectedAirlines, onAirlinesChang
               tripType: debouncedSearchParams.tripType || 'round-trip',
               passengerCount,
               selectedAirlines: selectedAirlineCodes,
+              travelClass: debouncedSearchParams.travelClass || 'economy',
             })
 
             // Check if request was aborted

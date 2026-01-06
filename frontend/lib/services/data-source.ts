@@ -74,7 +74,17 @@ class RealFlightDataSource implements FlightDataSource {
       endDate: formatDateToUTCString(params.endDate),
       tripType: params.tripType || null,
       passengerCount: params.passengerCount || 1,
+      travelClass: params.travelClass || 'economy',
     }
+
+    // Debug: Log travel class before sending to backend
+    console.log('[Frontend] Sending travelClass to backend:', {
+      travelClass: request.travelClass,
+      receivedFromParams: params.travelClass,
+      default: 'economy',
+      requestKeys: Object.keys(request),
+      requestObject: request, // Log full request object
+    });
 
     return await flightApi.analyzeFlightPrices(request)
   }

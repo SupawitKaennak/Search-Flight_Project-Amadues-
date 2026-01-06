@@ -44,6 +44,7 @@ export interface FlightSearchParams {
   endDate?: Date
   tripType?: 'one-way' | 'round-trip' | null
   passengerCount?: number
+  travelClass?: 'economy' | 'business' | 'first'
 }
 
 interface FlightSearchFormProps {
@@ -65,7 +66,7 @@ export function FlightSearchForm({ onSearch }: FlightSearchFormProps) {
     children: 0,
     infants: 0,
   })
-  const [travelClass, setTravelClass] = useState<string>('economy')
+  const [travelClass, setTravelClass] = useState<'economy' | 'business' | 'first'>('economy')
   const [isPassengerDialogOpen, setIsPassengerDialogOpen] = useState(false)
   const [errors, setErrors] = useState<{
     destination?: string
@@ -312,7 +313,15 @@ export function FlightSearchForm({ onSearch }: FlightSearchFormProps) {
       endDate,
       tripType,
       passengerCount: totalPassengers,
+      travelClass: travelClass as 'economy' | 'business' | 'first',
     }
+
+    // Debug: Log travel class before sending to onSearch
+    console.log('[FlightSearchForm] Sending searchParams with travelClass:', {
+      travelClass: searchParams.travelClass,
+      travelClassState: travelClass,
+      searchParamsKeys: Object.keys(searchParams),
+    });
     
     onSearch?.(searchParams)
     

@@ -124,6 +124,13 @@ export function RecommendationCard({ recommendedPeriod, seasons, currentSeason, 
     return min > 0 ? min : max > 0 ? max : 0
   }
   
+  // ✅ ใช้ bestDeal.price ของ currentSeason เป็นฐานในการเปรียบเทียบ
+  // เพื่อให้การเปรียบเทียบยุติธรรม (bestDeal vs bestDeal)
+  const currentSeasonBestDealPrice = getSeasonPrice(currentSeasonData)
+  const comparisonBasePrice = currentSeasonBestDealPrice > 0 
+    ? currentSeasonBestDealPrice 
+    : currentPrice // Fallback to currentPrice if bestDeal not available
+  
   const seasonComparisons = [
     {
       type: 'low' as const,
@@ -150,9 +157,9 @@ export function RecommendationCard({ recommendedPeriod, seasons, currentSeason, 
       priceRange: highSeasonData?.priceRange || { min: 0, max: 0 },
     },
   ].map(comp => {
-    const difference = comp.price - currentPrice
-    const percentage = currentPrice > 0 
-      ? Math.round((difference / currentPrice) * 100) 
+    const difference = comp.price - comparisonBasePrice  // ✅ ใช้ comparisonBasePrice แทน currentPrice
+    const percentage = comparisonBasePrice > 0 
+      ? Math.round((difference / comparisonBasePrice) * 100) 
       : 0
     return {
       ...comp,
@@ -225,7 +232,13 @@ export function RecommendationCard({ recommendedPeriod, seasons, currentSeason, 
                       <div 
                         className={`text-sm font-bold ${currentSeason === 'low' ? 'text-green-600' : currentSeason === 'high' ? 'text-red-600' : 'text-blue-600'}`}
                       >
-                        {'฿'}{currentPrice > 0 ? currentPrice.toLocaleString() : '-'}
+                        {'฿'}{comparisonBasePrice > 0 ? comparisonBasePrice.toLocaleString() : currentPrice > 0 ? currentPrice.toLocaleString() : '-'}
+                        {/* ✅ แสดงราคาวันนี้เป็นข้อมูลเพิ่มเติม ถ้าแตกต่างจาก bestDeal */}
+                        {comparisonBasePrice > 0 && currentPrice > 0 && comparisonBasePrice !== currentPrice && (
+                          <span className="text-xs text-muted-foreground ml-1 block mt-1">
+                            {'(ราคาวันนี้: ฿'}{currentPrice.toLocaleString()}{')'}
+                          </span>
+                        )}
                       </div>
                     </div>
                     {currentSeasonData && (
@@ -256,7 +269,7 @@ export function RecommendationCard({ recommendedPeriod, seasons, currentSeason, 
                               {'฿'}{comp.price > 0 ? comp.price.toLocaleString() : '-'}
                             </div>
                           </div>
-                          {comp.price > 0 && currentPrice > 0 && (
+                          {comp.price > 0 && comparisonBasePrice > 0 && (
                             <div className="flex items-center justify-between text-xs mb-1">
                               <span className="text-muted-foreground">
                                 {'ช่วง: '}{comp.months}
@@ -320,7 +333,9 @@ export function RecommendationCard({ recommendedPeriod, seasons, currentSeason, 
                   {seasonComparisons.length > 0 ? (
                     <div className="space-y-2">
                       {seasonComparisons.map((comp) => {
-                        const lowSeasonPrice = currentPrice > 0 ? currentPrice : recommendedPeriod.price
+                        // ✅ ใช้ bestDeal price ของ Low Season สำหรับเปรียบเทียบ
+                        const lowSeasonBestDealPrice = getSeasonPrice(lowSeasonData)
+                        const lowSeasonPrice = lowSeasonBestDealPrice > 0 ? lowSeasonBestDealPrice : (currentPrice > 0 ? currentPrice : recommendedPeriod.price)
                         const isMoreExpensive = comp.price > lowSeasonPrice
                         const difference = comp.price - lowSeasonPrice
                         const percentage = lowSeasonPrice > 0 
