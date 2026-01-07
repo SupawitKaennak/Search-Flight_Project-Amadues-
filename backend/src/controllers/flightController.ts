@@ -198,6 +198,7 @@ export async function getFlightPrices(
         duration: fp.duration,
         flightNumber: fp.flight_number,
         travelClass: travelClass,
+        departureDate: fp.departure_date ? new Date(fp.departure_date).toISOString().split('T')[0] : undefined, // ✅ เพิ่มวันที่
       };
     });
 

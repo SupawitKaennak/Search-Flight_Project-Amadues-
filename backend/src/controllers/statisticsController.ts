@@ -129,7 +129,7 @@ export async function getPriceStatistics(req: Request, res: Response, next: Next
   try {
     const { origin, destination } = req.query;
 
-    const [averagePrice, priceTrend] = await Promise.all([
+    const [averagePrice, priceTrend, searchTrend] = await Promise.all([
       PriceStatisticsModel.getAveragePrice(
         origin as string | undefined,
         destination as string | undefined
@@ -138,11 +138,15 @@ export async function getPriceStatistics(req: Request, res: Response, next: Next
         origin as string | undefined,
         destination as string | undefined
       ),
+      SearchStatisticsModel.getSearchTrend(
+        destination as string | undefined
+      ),
     ]);
 
     res.json({
       averagePrice,
       priceTrend,
+      searchTrend, // ✅ เพิ่ม search trend (จำนวนคนค้นหาเพิ่มขึ้น/ลดลง)
     });
   } catch (error) {
     next(error);
