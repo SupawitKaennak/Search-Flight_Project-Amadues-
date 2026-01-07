@@ -22,9 +22,28 @@ import { formatDateToUTCString } from '@/lib/utils'
 
 interface PriceAnalysisProps {
   searchParams?: FlightSearchParams | null
+  onFlightPricesChange?: (flightPrices: Array<{
+    id: number
+    airline_id: number
+    airline_code: string
+    airline_name: string
+    airline_name_th: string
+    departure_date: Date | string
+    return_date: Date | string | null
+    price: number
+    base_price: number
+    departure_time: string
+    arrival_time: string
+    duration: number
+    flight_number: string
+    trip_type: 'one-way' | 'round-trip'
+    season: 'high' | 'normal' | 'low'
+    origin?: string
+    destination?: string
+  }> | null) => void
 }
 
-export function PriceAnalysis({ searchParams }: PriceAnalysisProps) {
+export function PriceAnalysis({ searchParams, onFlightPricesChange }: PriceAnalysisProps) {
   const [analysis, setAnalysis] = useState<FlightAnalysisResult | null>(null)
   const [selectedAirlines, setSelectedAirlines] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
@@ -49,8 +68,12 @@ export function PriceAnalysis({ searchParams }: PriceAnalysisProps) {
       // Clear old analysis immediately to prevent showing wrong season
       setAnalysis(null)
       setLoading(true)
+      // ✅ Clear flightPrices ใน parent component เมื่อ travel class เปลี่ยน
+      if (onFlightPricesChange) {
+        onFlightPricesChange(null)
+      }
     }
-  }, [searchParams?.travelClass])
+  }, [searchParams?.travelClass, onFlightPricesChange])
 
   // Cleanup on unmount
   useEffect(() => {
@@ -73,6 +96,10 @@ export function PriceAnalysis({ searchParams }: PriceAnalysisProps) {
     if (!debouncedSearchParams) {
       setAnalysis(null)
       setLoading(false)
+      // ✅ Clear flightPrices ใน parent component เมื่อไม่มีข้อมูล
+      if (onFlightPricesChange) {
+        onFlightPricesChange(null)
+      }
       return
     }
 
@@ -98,6 +125,16 @@ export function PriceAnalysis({ searchParams }: PriceAnalysisProps) {
           }
 
             setAnalysis(result)
+            
+            // ✅ ส่ง flightPrices กลับไปให้ parent component เพื่อให้ PopularDestinations ใช้
+            if (onFlightPricesChange && result.flightPrices) {
+              const flightPricesWithRoute = result.flightPrices.map(fp => ({
+                ...fp,
+                origin: debouncedSearchParams?.origin,
+                destination: debouncedSearchParams?.destination,
+              }))
+              onFlightPricesChange(flightPricesWithRoute)
+            }
           setLoading(false)
             
             // Save price statistics to backend database (non-blocking)

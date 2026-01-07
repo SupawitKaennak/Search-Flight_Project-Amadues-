@@ -5,7 +5,10 @@ import { Card } from '@/components/ui/card'
 import { TrendingUp, TrendingDown, Users } from 'lucide-react'
 import { statisticsApi } from '@/lib/api/statistics-api'
 import { destinationApi } from '@/lib/api/destination-api'
+import { flightApi } from '@/lib/api/flight-api'
 import { PROVINCES } from '@/services/data/constants'
+import { FlightSearchParams } from '@/components/flight-search-form'
+import { formatDateToUTCString } from '@/lib/utils'
 
 // Mapping สำหรับรูปภาพของแต่ละจังหวัด (ใช้ province value)
 // ใช้ชื่อไฟล์ตรงกับชื่อจังหวัด (province value) + '.jpg'
@@ -124,12 +127,37 @@ interface PopularDestinationDisplay {
   count: number
   provinceValue: string
   image: string
-  avgPrice: string
+  cheapestPrice: string
+  airlineName: string | null
+  cheapestDate: string | null // ✅ เพิ่มวันที่ของราคาต่ำสุด
   trend: string
   popular: boolean
 }
 
-export function PopularDestinations() {
+interface PopularDestinationsProps {
+  flightPrices?: Array<{
+    id: number
+    airline_id: number
+    airline_code: string
+    airline_name: string
+    airline_name_th: string
+    departure_date: Date | string
+    return_date: Date | string | null
+    price: number
+    base_price: number
+    departure_time: string
+    arrival_time: string
+    duration: number
+    flight_number: string
+    trip_type: 'one-way' | 'round-trip'
+    season: 'high' | 'normal' | 'low'
+    origin?: string
+    destination?: string
+  }> | null
+  currentSearchParams?: FlightSearchParams | null
+}
+
+export function PopularDestinations({ flightPrices, currentSearchParams }: PopularDestinationsProps = {}) {
   const [destinations, setDestinations] = useState<PopularDestinationDisplay[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -154,50 +182,168 @@ export function PopularDestinations() {
             const provinceValue = province?.value || dest.destination
             const displayName = dest.destination_name || province?.label || dest.destination
             
-            // ดึงข้อมูลราคาและ trend จาก API (จากกรุงเทพไปยังปลายทางนั้นๆ)
-            let avgPrice = mockAveragePrices[provinceValue]
+            // ดึงข้อมูลราคาต่ำสุดและสายการบิน
+            let cheapestPrice: number | null = null
+            let airlineName: string | null = null
+            let cheapestDate: string | null = null // ✅ เพิ่มวันที่ของราคาต่ำสุด
             let trend = mockTrends[provinceValue] || '+10%'
             
-            try {
-              // ดึงราคาและ trend จาก API ถ้ามีข้อมูล (จากกรุงเทพไปยังปลายทาง)
-              const priceStats = await statisticsApi.getPriceStatistics('bangkok', dest.destination)
+            // ✅ ตรวจสอบว่ามีข้อมูล flightPrices จาก airline-flights หรือไม่ (ถ้าปลายทางตรงกัน)
+            // เปรียบเทียบทั้ง destination value และ province value
+            const searchDestinationProvince = currentSearchParams?.destination 
+              ? PROVINCES.find(p => 
+                  p.value === currentSearchParams.destination || 
+                  p.label === currentSearchParams.destination
+                )
+              : null
+            const hasMatchingFlightPrices = flightPrices && 
+              flightPrices.length > 0 &&
+              currentSearchParams?.origin === 'bangkok' &&
+              (currentSearchParams?.destination === dest.destination ||
+               currentSearchParams?.destination === provinceValue ||
+               searchDestinationProvince?.value === provinceValue ||
+               searchDestinationProvince?.value === dest.destination)
+            
+            if (hasMatchingFlightPrices && flightPrices.length > 0) {
+              // ✅ ใช้ข้อมูลจาก airline-flights (ราคาที่ถูกที่สุดจากที่แนะนำ)
+              const cheapest = flightPrices.reduce((min, flight) => 
+                flight.price < min.price ? flight : min
+              )
               
-              // ใช้ราคาจาก API ถ้ามี
-              if (priceStats.averagePrice) {
-                avgPrice = priceStats.averagePrice
+              cheapestPrice = cheapest.price
+              airlineName = cheapest.airline_name_th || cheapest.airline_name || null
+              // ✅ เก็บวันที่ของเที่ยวบินที่ถูกที่สุด
+              if (cheapest.departure_date) {
+                const date = typeof cheapest.departure_date === 'string' 
+                  ? new Date(cheapest.departure_date) 
+                  : cheapest.departure_date
+                cheapestDate = date.toLocaleDateString('th-TH', {
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric'
+                })
               }
               
-              // ใช้ trend จาก API ถ้ามี
-              if (priceStats.priceTrend) {
-                const { trend: trendType, percentage } = priceStats.priceTrend
-                // แปลง trend เป็น string format เช่น '+15%', '-10%', '0%'
+              console.log(`✅ [REAL DATA - AirlineFlights] ${dest.destination} (${displayName}): ${airlineName || 'Unknown'} - ฿${cheapestPrice}`, {
+                totalFlights: flightPrices.length,
+                cheapestFlight: cheapest
+              })
+            } else {
+              // ✅ ถ้าไม่มีข้อมูลจาก airline-flights ให้ไปดึงข้อมูลใหม่
+              try {
+                const today = new Date()
+                const futureDate = new Date()
+                futureDate.setDate(futureDate.getDate() + 90) // ดูข้อมูล 90 วันข้างหน้า
+                
+                const fetchedFlightPrices = await flightApi.getFlightPrices({
+                  origin: 'bangkok',
+                  destination: dest.destination,
+                  startDate: today.toISOString().split('T')[0],
+                  endDate: futureDate.toISOString().split('T')[0],
+                  tripType: 'one-way',
+                  passengerCount: 1,
+                  selectedAirlines: [],
+                  travelClass: 'economy',
+                })
+                
+                // หาเที่ยวบินที่ถูกที่สุด
+                if (fetchedFlightPrices && fetchedFlightPrices.length > 0) {
+                  const cheapest = fetchedFlightPrices.reduce((min, flight) => 
+                    flight.price < min.price ? flight : min
+                  )
+                  
+                  cheapestPrice = cheapest.price
+                  airlineName = cheapest.airline_name_th || cheapest.airline_name || cheapest.airline || null
+                  // ✅ เก็บวันที่ของเที่ยวบินที่ถูกที่สุด
+                  if (cheapest.departureDate) {
+                    const date = new Date(cheapest.departureDate)
+                    cheapestDate = date.toLocaleDateString('th-TH', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric'
+                    })
+                  } else {
+                    // Fallback: ใช้ startDate ที่ส่งไป (ไม่แม่นยำ 100% แต่ดีกว่าไม่มี)
+                    cheapestDate = today.toLocaleDateString('th-TH', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric'
+                    })
+                  }
+                  
+                  console.log(`✅ [REAL DATA - API] ${dest.destination} (${displayName}): ${airlineName || 'Unknown'} - ฿${cheapestPrice}`, {
+                    totalFlights: fetchedFlightPrices.length,
+                    cheapestFlight: cheapest
+                  })
+                } else {
+                  console.warn(`⚠️ [NO DATA - API] ${dest.destination}: API returned empty array`)
+                }
+              
+              } catch (flightError) {
+                // ถ้า API error หรือไม่มีข้อมูล ให้ใช้ mock data
+                console.warn(`⚠️ [MOCK DATA - API Error] ${dest.destination} (${displayName}): ${flightError instanceof Error ? flightError.message : 'Unknown error'}`, {
+                  error: flightError,
+                  usingMockPrice: mockAveragePrices[provinceValue] || null
+                })
+                cheapestPrice = mockAveragePrices[provinceValue] || null
+              }
+            }
+            
+            // ✅ ดึง search trend (จำนวนคนค้นหาเพิ่มขึ้น/ลดลง) จาก statistics API
+            try {
+              const priceStats = await statisticsApi.getPriceStatistics('bangkok', dest.destination)
+              console.log(`[PopularDestinations] ${dest.destination} - priceStats:`, {
+                searchTrend: priceStats.searchTrend,
+                priceTrend: priceStats.priceTrend,
+              })
+              // ใช้ searchTrend แทน priceTrend (จำนวนคนค้นหาเพิ่มขึ้น/ลดลง)
+              if (priceStats.searchTrend) {
+                const { trend: trendType, percentage } = priceStats.searchTrend
+                console.log(`[PopularDestinations] ${dest.destination} - Using searchTrend: ${trendType} ${percentage}%`)
                 if (trendType === 'up') {
                   trend = `+${percentage}%`
                 } else if (trendType === 'down') {
                   trend = `-${percentage}%`
                 } else {
-                  trend = '0%' // stable
+                  trend = '0%'
                 }
+              } else if (priceStats.priceTrend) {
+                // Fallback: ถ้าไม่มี searchTrend ใช้ priceTrend (ราคา)
+                console.log(`[PopularDestinations] ${dest.destination} - Using priceTrend (fallback):`, priceStats.priceTrend)
+                const { trend: trendType, percentage } = priceStats.priceTrend
+                if (trendType === 'up') {
+                  trend = `+${percentage}%`
+                } else if (trendType === 'down') {
+                  trend = `-${percentage}%`
+                } else {
+                  trend = '0%'
+                }
+              } else {
+                console.log(`[PopularDestinations] ${dest.destination} - No trend data, using mockTrends`)
               }
-            } catch (priceError) {
-              // ถ้า API error หรือไม่มีข้อมูล ให้ใช้ mock data
-              console.debug(`No price/trend data for ${dest.destination}, using mock data`)
+            } catch (trendError) {
+              // ถ้าไม่มี trend data ก็ใช้ mock data
+              console.warn(`[PopularDestinations] No trend data for ${dest.destination}`, trendError)
             }
             
             // ถ้ายังไม่มีราคา ให้ใช้ค่า default ตามระยะทางคร่าวๆ
-            if (!avgPrice) {
-              // ใช้ราคาเฉลี่ยตามภูมิภาค (ให้หลากหลายขึ้น)
-              if (provinceValue.includes('chiang') || provinceValue.includes('mae')) {
-                avgPrice = 3500 // ภาคเหนือ
-              } else if (provinceValue.includes('phuket') || provinceValue.includes('krabi') || provinceValue.includes('samui')) {
-                avgPrice = 3200 // ภาคใต้ (เที่ยวบินยอดนิยม)
-              } else if (provinceValue.includes('rayong') || provinceValue.includes('trat') || provinceValue.includes('prachuap')) {
-                avgPrice = 2200 // ภาคตะวันออก
-              } else if (provinceValue.includes('khon') || provinceValue.includes('udon') || provinceValue.includes('nakhon-ratchasima')) {
-                avgPrice = 2700 // ภาคอีสาน
-              } else {
-                avgPrice = 2800 // ค่า default ที่หลากหลายขึ้น
-              }
+            if (cheapestPrice === null) {
+              const fallbackPrice = (() => {
+                if (provinceValue.includes('chiang') || provinceValue.includes('mae')) {
+                  return 3500
+                } else if (provinceValue.includes('phuket') || provinceValue.includes('krabi') || provinceValue.includes('samui')) {
+                  return 3200
+                } else if (provinceValue.includes('rayong') || provinceValue.includes('trat') || provinceValue.includes('prachuap')) {
+                  return 2200
+                } else if (provinceValue.includes('khon') || provinceValue.includes('udon') || provinceValue.includes('nakhon-ratchasima')) {
+                  return 2700
+                } else {
+                  return 2800
+                }
+              })()
+              
+              console.warn(`⚠️ [MOCK DATA - Fallback] ${dest.destination} (${displayName}): No price data, using fallback ฿${fallbackPrice}`)
+              cheapestPrice = fallbackPrice
             }
             
             return {
@@ -206,9 +352,11 @@ export function PopularDestinations() {
               count: dest.count,
               provinceValue,
               image: provinceImages[provinceValue] || '/placeholder.svg',
-              avgPrice: `฿${Math.round(avgPrice).toLocaleString()}`,
+              cheapestPrice: `฿${Math.round(cheapestPrice).toLocaleString()}`,
+              airlineName: airlineName,
+              cheapestDate: cheapestDate, // ✅ เพิ่มวันที่
               trend: trend,
-              popular: index === 0, // แสดง badge "ยอดนิยม" สำหรับจังหวัดที่คนค้นหาเยอะสุดแค่อันเดียว
+              popular: index === 0,
             }
           })
         
@@ -224,7 +372,7 @@ export function PopularDestinations() {
     }
 
     fetchPopularDestinations()
-  }, [])
+  }, [flightPrices, currentSearchParams])
 
   if (loading) {
     return (
@@ -333,8 +481,18 @@ export function PopularDestinations() {
                 </div>
                 
                 <div className="pt-2 border-t">
-                  <div className="text-xs text-muted-foreground mb-1">{'ราคาเฉลี่ย'}</div>
-                  <div className="text-xl font-bold text-primary">{dest.avgPrice}</div>
+                  <div className="text-xs text-muted-foreground mb-1">{'ราคาถูกที่สุด'}</div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="text-xl font-bold text-primary">{dest.cheapestPrice}</div>
+                    {dest.airlineName && (
+                      <div className="text-sm text-muted-foreground">• {dest.airlineName}</div>
+                    )}
+                  </div>
+                  {dest.cheapestDate && (
+                    <div className="text-xs text-muted-foreground mt-1">
+                      {'วันที่: '}{dest.cheapestDate}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

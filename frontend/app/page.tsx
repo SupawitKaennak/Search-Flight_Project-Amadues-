@@ -11,6 +11,25 @@ import { ScrollToTopButton } from '@/components/scroll-to-top-button'
 
 export default function HomePage() {
   const [searchParams, setSearchParams] = useState<FlightSearchParams | null>(null)
+  const [flightPrices, setFlightPrices] = useState<Array<{
+    id: number
+    airline_id: number
+    airline_code: string
+    airline_name: string
+    airline_name_th: string
+    departure_date: Date | string
+    return_date: Date | string | null
+    price: number
+    base_price: number
+    departure_time: string
+    arrival_time: string
+    duration: number
+    flight_number: string
+    trip_type: 'one-way' | 'round-trip'
+    season: 'high' | 'normal' | 'low'
+    origin?: string
+    destination?: string
+  }> | null>(null)
 
   const handleSearch = (params: FlightSearchParams) => {
     setSearchParams(params)
@@ -59,7 +78,10 @@ export default function HomePage() {
 
       {/* Price Analysis Section */}
       <section id="analysis" className="py-12">
-        <PriceAnalysis searchParams={searchParams} />
+        <PriceAnalysis 
+          searchParams={searchParams} 
+          onFlightPricesChange={setFlightPrices}
+        />
       </section>
 
       {/* Flight Statistics Section */}
@@ -71,7 +93,10 @@ export default function HomePage() {
 
       {/* Popular Destinations Section */}
       <section id="destinations" className="py-12 bg-secondary/30">
-        <PopularDestinations />
+        <PopularDestinations 
+          flightPrices={flightPrices}
+          currentSearchParams={searchParams}
+        />
       </section>
 
       {/* Scroll to Top Button */}

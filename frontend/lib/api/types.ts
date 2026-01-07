@@ -24,6 +24,7 @@ export interface FlightPrice {
   arrivalTime: string
   duration: number
   flightNumber: string
+  departureDate?: string // ✅ เพิ่มวันที่
 }
 
 export interface AnalyzeFlightPricesRequest {

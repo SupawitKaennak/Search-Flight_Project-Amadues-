@@ -49,6 +49,10 @@ export interface PriceStatisticsResponse {
     trend: 'up' | 'down' | 'stable';
     percentage: number;
   } | null;
+  searchTrend?: {  // ✅ เพิ่ม search trend
+    trend: 'up' | 'down' | 'stable';
+    percentage: number;
+  } | null;
 }
 
 export class StatisticsApi {
