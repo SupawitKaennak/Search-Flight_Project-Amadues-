@@ -114,14 +114,22 @@ export function RecommendationCard({ recommendedPeriod, seasons, currentSeason, 
   // Get price for each season (use bestDeal or average of priceRange)
   const getSeasonPrice = (seasonData: SeasonData | undefined): number => {
     if (!seasonData) return 0
+    // ✅ Priority 1: Use bestDeal.price if available and > 0
     if (seasonData.bestDeal?.price && seasonData.bestDeal.price > 0) {
       return seasonData.bestDeal.price
     }
+    // ✅ Priority 2: Use average of priceRange if available
     const { min, max } = seasonData.priceRange
     if (min > 0 && max > 0) {
       return Math.round((min + max) / 2)
     }
-    return min > 0 ? min : max > 0 ? max : 0
+    // ✅ Priority 3: Use min or max if one is available
+    if (min > 0) return min
+    if (max > 0) return max
+    // ❌ REMOVED: Fallback to currentPrice - this causes Low and High Season to show same price
+    // Each season should have its own price from backend data
+    // Last resort: return 0 (will show "-" in UI)
+    return 0
   }
   
   // ✅ ใช้ bestDeal.price ของ currentSeason เป็นฐานในการเปรียบเทียบ
@@ -130,6 +138,25 @@ export function RecommendationCard({ recommendedPeriod, seasons, currentSeason, 
   const comparisonBasePrice = currentSeasonBestDealPrice > 0 
     ? currentSeasonBestDealPrice 
     : currentPrice // Fallback to currentPrice if bestDeal not available
+  
+  // ✅ Calculate best deal across all seasons for comparison
+  const bestDealAcrossSeasons = seasons.reduce((best, season) => {
+    if (!best) return season
+    const seasonPrice = getSeasonPrice(season)
+    const bestPrice = getSeasonPrice(best)
+    return seasonPrice > 0 && (bestPrice === 0 || seasonPrice < bestPrice) ? season : best
+  }, null as SeasonData | null)
+  
+  const bestDealPrice = bestDealAcrossSeasons ? getSeasonPrice(bestDealAcrossSeasons) : 0
+  
+  // ✅ Calculate comparison for current season (compared to best deal)
+  const currentSeasonComparison = comparisonBasePrice > 0 && bestDealPrice > 0 && comparisonBasePrice !== bestDealPrice
+    ? {
+        difference: comparisonBasePrice - bestDealPrice,
+        percentage: Math.round(((comparisonBasePrice - bestDealPrice) / bestDealPrice) * 100),
+        isCheaper: comparisonBasePrice < bestDealPrice,
+      }
+    : null
   
   const seasonComparisons = [
     {
@@ -246,6 +273,17 @@ export function RecommendationCard({ recommendedPeriod, seasons, currentSeason, 
                         {'ช่วง: '}{currentSeasonData.months.join(', ')}
                       </div>
                     )}
+                    {/* ✅ Show comparison percentage for current season */}
+                    {currentSeasonComparison && (
+                      <div className="flex items-center justify-between text-xs mt-1">
+                        <span className="text-muted-foreground">
+                          {'เปรียบเทียบกับ Best Deal'}
+                        </span>
+                        <span className={currentSeasonComparison.isCheaper ? 'text-green-600 font-semibold' : 'text-red-600 font-semibold'}>
+                          {currentSeasonComparison.isCheaper ? 'ถูกกว่า' : 'แพงกว่า'} {Math.abs(currentSeasonComparison.percentage)}%
+                        </span>
+                      </div>
+                    )}
                     {currentSeasonData && currentSeasonData.priceRange.min > 0 && currentSeasonData.priceRange.max > 0 && (
                       <div className="text-xs text-muted-foreground mt-1">
                         {'ราคา: ฿'}{currentSeasonData.priceRange.min.toLocaleString()}
@@ -269,20 +307,35 @@ export function RecommendationCard({ recommendedPeriod, seasons, currentSeason, 
                               {'฿'}{comp.price > 0 ? comp.price.toLocaleString() : '-'}
                             </div>
                           </div>
-                          {comp.price > 0 && comparisonBasePrice > 0 && (
+                          {/* ✅ Always show months if available */}
+                          {comp.months && (
                             <div className="flex items-center justify-between text-xs mb-1">
                               <span className="text-muted-foreground">
-                                {'ช่วง: '}{comp.months}
+                                {'ช่วง: '}{comp.months || 'ไม่มีข้อมูล'}
                               </span>
-                              <span className={isCheaper ? 'text-green-600 font-semibold' : 'text-red-600 font-semibold'}>
-                                {isCheaper ? 'ถูกกว่า' : 'แพงกว่า'} {Math.abs(comp.percentage)}%
-                              </span>
+                              {/* ✅ Show percentage comparison only if both prices are available */}
+                              {comp.price > 0 && comparisonBasePrice > 0 && (
+                                <span className={isCheaper ? 'text-green-600 font-semibold' : 'text-red-600 font-semibold'}>
+                                  {isCheaper ? 'ถูกกว่า' : 'แพงกว่า'} {Math.abs(comp.percentage)}%
+                                </span>
+                              )}
                             </div>
                           )}
-                          {comp.priceRange.min > 0 && comp.priceRange.max > 0 && (
+                          {/* ✅ Always show price range if available */}
+                          {comp.priceRange.min > 0 && comp.priceRange.max > 0 ? (
                             <div className="text-xs text-muted-foreground">
                               {'ราคา: ฿'}{comp.priceRange.min.toLocaleString()}
                               {' - ฿'}{comp.priceRange.max.toLocaleString()}
+                            </div>
+                          ) : comp.price > 0 ? (
+                            // ✅ Fallback: Show single price if priceRange not available
+                            <div className="text-xs text-muted-foreground">
+                              {'ราคา: ฿'}{comp.price.toLocaleString()}
+                            </div>
+                          ) : (
+                            // ✅ Show message if no price data
+                            <div className="text-xs text-muted-foreground italic">
+                              {'ไม่มีข้อมูลราคาในช่วงนี้'}
                             </div>
                           )}
                         </div>

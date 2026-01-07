@@ -13,6 +13,7 @@ import {
   PredictPriceRequest,
   PriceTrendRequest,
   PredictPriceRangeRequest,
+  PriceAnalysisRequest,
 } from '../types';
 import { parseISO, format, addDays } from 'date-fns';
 
@@ -30,7 +31,7 @@ const priceAnalysisService = new AmadeusPriceAnalysisService();
 export async function getAirportCodeByProvince(
   req: Request,
   res: Response,
-  next: NextFunction
+  _next: NextFunction
 ): Promise<void> {
   try {
     const { province } = req.query;
@@ -50,9 +51,10 @@ export async function getAirportCodeByProvince(
       airportCode: airportCode,
     });
   } catch (error: any) {
+    const provinceParam = req.query.province as string || 'unknown';
     res.status(404).json({
       error: 'Airport not found',
-      message: error.message || `Could not find airport for province: ${province}. Please use /api/airports/search instead.`,
+      message: error.message || `Could not find airport for province: ${provinceParam}. Please use /api/airports/search instead.`,
     });
   }
 }
@@ -64,7 +66,7 @@ export async function getAirportCodeByProvince(
 export async function analyzeFlightPrices(
   req: Request,
   res: Response,
-  next: NextFunction
+  _next: NextFunction
 ): Promise<void> {
   try {
     const params: AnalyzeFlightPricesRequest = req.body;
@@ -93,7 +95,7 @@ export async function analyzeFlightPrices(
         travelClass: req.body?.travelClass,
       },
     });
-    next(error);
+    _next(error);
   }
 }
 
@@ -166,9 +168,10 @@ export async function getFlightPrices(
       business: 2.5,
       first: 4.0,
     };
-    const travelClassMultiplier = travelClassMultipliers[travelClass] || 1.0;
     
-    const flightPrices = flightRecords.map((fp) => {
+    const flightPrices = flightRecords.map((fp: any) => {
+      // fp is from database query which includes JOIN with airlines table
+      // So it has: airline_code, airline_name, airline_name_th from the JOIN
       const fpTravelClass = (fp.travel_class || 'economy') as 'economy' | 'business' | 'first';
       
       // Calculate multiplier based on travel class conversion

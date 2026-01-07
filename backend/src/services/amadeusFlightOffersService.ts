@@ -2,7 +2,8 @@ import { AmadeusService } from './amadeusService';
 import { FlightModel } from '../models/Flight';
 import { AmadeusAirlineService } from './amadeusAirlineService';
 import { format, parseISO, addDays, differenceInDays } from 'date-fns';
-import { CacheService } from './cacheService';
+// @ts-ignore - CacheService kept for future use
+// import { CacheService } from './cacheService';
 import { pool } from '../config/database';
 
 export interface AmadeusFlightOffer {
@@ -430,7 +431,7 @@ export class AmadeusFlightOffersService extends AmadeusService {
       console.log(`[AmadeusFlightOffersService] 📊 Found ${result.rows.length} flights in database`);
       
       // Transform database records to Amadeus format
-      const flightOffers: AmadeusFlightOffer[] = result.rows.map((row, index) => {
+      const flightOffers: AmadeusFlightOffer[] = result.rows.map((row) => {
         const departureDateTime = new Date(row.departure_date);
         const [depHours, depMinutes] = row.departure_time.split(':');
         departureDateTime.setHours(parseInt(depHours), parseInt(depMinutes), 0);

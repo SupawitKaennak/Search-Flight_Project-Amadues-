@@ -35,9 +35,9 @@ interface EndpointStatus {
  * Check database connectivity
  */
 export async function checkDatabase(
-  req: Request,
+  _req: Request,
   res: Response,
-  next: NextFunction
+  _next: NextFunction
 ): Promise<void> {
   const startTime = Date.now();
   try {
@@ -66,9 +66,9 @@ export async function checkDatabase(
  * Check Amadeus API connectivity
  */
 export async function checkAmadeus(
-  req: Request,
+  _req: Request,
   res: Response,
-  next: NextFunction
+  _next: NextFunction
 ): Promise<void> {
   const startTime = Date.now();
   try {
@@ -130,9 +130,9 @@ export async function checkAmadeus(
  * Check environment variables
  */
 export async function checkEnvironment(
-  req: Request,
+  _req: Request,
   res: Response,
-  next: NextFunction
+  _next: NextFunction
 ): Promise<void> {
   const requiredVars = [
     'DB_HOST',
@@ -186,9 +186,9 @@ export async function checkEnvironment(
  * Get comprehensive health status
  */
 export async function getDetailedHealth(
-  req: Request,
+  _req: Request,
   res: Response,
-  next: NextFunction
+  _next: NextFunction
 ): Promise<void> {
   const healthStatus: HealthStatus = {
     status: 'healthy',
@@ -277,9 +277,9 @@ export async function getDetailedHealth(
  * Get all endpoints status (basic check - just verifies routes exist)
  */
 export async function getEndpointsStatus(
-  req: Request,
+  _req: Request,
   res: Response,
-  next: NextFunction
+  _next: NextFunction
 ): Promise<void> {
   const endpoints: EndpointStatus[] = [
     // Flights

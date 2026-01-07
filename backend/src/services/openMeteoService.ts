@@ -4,7 +4,7 @@
  * https://open-meteo.com/en/docs/historical-weather-api
  */
 
-import { format, parseISO, startOfMonth, endOfMonth } from 'date-fns';
+import { format, startOfMonth, endOfMonth } from 'date-fns';
 
 export interface WeatherData {
   date: string; // YYYY-MM-DD
@@ -139,7 +139,7 @@ export class OpenMeteoService {
         return [];
       }
 
-      const data: OpenMeteoHistoricalResponse = await response.json();
+      const data = await response.json() as OpenMeteoHistoricalResponse;
       
       if (!data.daily || !data.daily.time || data.daily.time.length === 0) {
         console.warn(`[OpenMeteoService] No data returned for ${province} (${start} to ${end})`);
@@ -293,7 +293,8 @@ export class OpenMeteoService {
   /**
    * Rate limiting helper
    */
-  private async rateLimit(ms: number): Promise<void> {
+  // @ts-ignore - rateLimit method kept for future use
+  private async _rateLimit(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 }

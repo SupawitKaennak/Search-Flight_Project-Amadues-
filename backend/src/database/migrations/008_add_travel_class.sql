@@ -1,4 +1,4 @@
--- Migration 009: Add travel_class column to flight_prices table
+-- Migration 008: Add travel_class column to flight_prices table
 -- This migration adds support for different travel classes (economy, business, etc.)
 -- Each travel class will have different pricing multipliers
 
@@ -16,9 +16,15 @@ WHERE travel_class IS NULL;
 CREATE INDEX IF NOT EXISTS idx_flight_prices_travel_class ON flight_prices(travel_class);
 
 -- Update unique constraint to include travel_class
--- First, drop the old unique constraint if it exists
+-- First, drop the old unique constraints if they exist
 ALTER TABLE flight_prices 
 DROP CONSTRAINT IF EXISTS flight_prices_route_id_airline_id_departure_date_trip_type_flight_number_key;
+
+ALTER TABLE flight_prices 
+DROP CONSTRAINT IF EXISTS flight_prices_unique_flight;
+
+ALTER TABLE flight_prices 
+DROP CONSTRAINT IF EXISTS flight_prices_unique;
 
 -- Add new unique constraint that includes travel_class
 ALTER TABLE flight_prices 

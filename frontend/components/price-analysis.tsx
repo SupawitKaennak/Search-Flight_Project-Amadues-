@@ -42,6 +42,16 @@ export function PriceAnalysis({ searchParams }: PriceAnalysisProps) {
   const debouncedSearchParams = useDebounce(searchParams, 500)
   // ✅ ลบ debouncedSelectedAirlines ออก - ไม่ต้องใช้แล้ว
 
+  // ✅ Clear analysis immediately when travel class changes (before debounce)
+  // This prevents showing stale/wrong season data when travel class changes
+  useEffect(() => {
+    if (searchParams?.travelClass) {
+      // Clear old analysis immediately to prevent showing wrong season
+      setAnalysis(null)
+      setLoading(true)
+    }
+  }, [searchParams?.travelClass])
+
   // Cleanup on unmount
   useEffect(() => {
     isMountedRef.current = true
@@ -256,18 +266,24 @@ export function PriceAnalysis({ searchParams }: PriceAnalysisProps) {
 
       {/* Recommendation Card & Weather Display - Side by Side */}
       {recommendedPeriod && searchParams?.destination && (() => {
-        // Calculate current season
-        const currentMonth = new Date().getMonth()
-        const monthSeasonMap: Record<number, 'high' | 'normal' | 'low'> = {}
-        seasons.forEach(season => {
-          season.months.forEach(monthName => {
-            const monthIndex = thaiMonthsFull.findIndex(m => m === monthName)
-            if (monthIndex !== -1) {
-              monthSeasonMap[monthIndex] = season.type
-            }
+        // ✅ Use recommendedPeriod.season from backend instead of calculating from current month
+        // Backend calculates season based on selected date, ensuring consistency across travel classes
+        // Season is date-based, not travel class-based, so it should be the same for all classes
+        const currentSeason = recommendedPeriod.season || (() => {
+          // Fallback: Calculate from selected date's month if season not available
+          const targetDate = searchParams.startDate || new Date()
+          const targetMonth = targetDate.getMonth()
+          const monthSeasonMap: Record<number, 'high' | 'normal' | 'low'> = {}
+          seasons.forEach(season => {
+            season.months.forEach(monthName => {
+              const monthIndex = thaiMonthsFull.findIndex(m => m === monthName)
+              if (monthIndex !== -1) {
+                monthSeasonMap[monthIndex] = season.type
+              }
+            })
           })
-        })
-        const currentSeason = monthSeasonMap[currentMonth] || 'normal'
+          return monthSeasonMap[targetMonth] || 'normal'
+        })()
 
         return (
           <div className="mb-12 w-full max-w-6xl mx-auto">

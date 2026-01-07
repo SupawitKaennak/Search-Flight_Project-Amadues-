@@ -130,16 +130,35 @@ export class FlightAnalysisService {
       let analysisEndDate: Date;
       
       if (userDateRange < MIN_DAYS_FOR_SEASON) {
-        // User selected narrow range (< 180 days) - expand to 180 days centered around their selection
-        console.log(`[FlightAnalysis] ⚠️  User range too narrow (${Math.floor(userDateRange)} days). Expanding to ${MIN_DAYS_FOR_SEASON} days for season calculation.`);
+        // User selected narrow range (< 180 days) - expand to cover full year (12 months)
+        console.log(`[FlightAnalysis] ⚠️  User range too narrow (${Math.floor(userDateRange)} days). Expanding to cover full year (12 months) for season calculation.`);
         
-        // Expand backwards and forwards to cover 180 days
-        analysisStartDate = addDays(startDateObj, -90); // 90 days before
-        analysisEndDate = addDays(startDateObj, 90);    // 90 days after
+        // ✅ Fix: Expand to cover full year (12 months) instead of just 180 days
+        const currentYear = startDateObj.getFullYear();
+        const currentMonth = startDateObj.getMonth();
+        
+        // Start from 6 months before, end 6 months after (total 12 months)
+        analysisStartDate = new Date(currentYear, currentMonth - 6, 1);
+        analysisEndDate = new Date(currentYear, currentMonth + 6, 0); // Last day of month
+        
+        // Ensure we don't go too far in the past (limit to reasonable range)
+        const minDate = new Date();
+        minDate.setMonth(minDate.getMonth() - 12); // Don't go more than 12 months back
+        if (analysisStartDate < minDate) {
+          analysisStartDate = minDate;
+        }
       } else {
         // User selected wide enough range - use their range with buffers
         analysisStartDate = addDays(startDateObj, -(comparisonDays + 7)); // Start 14 days before
-        analysisEndDate = endDateObj ? addDays(endDateObj, 90) : addDays(startDateObj, 180 + comparisonDays);
+        
+        // ✅ Fix: Ensure we cover at least 12 months
+        const endYear = endDateObj ? endDateObj.getFullYear() : startDateObj.getFullYear();
+        const endMonth = endDateObj ? endDateObj.getMonth() : startDateObj.getMonth();
+        const extendedEndDate = new Date(endYear, endMonth + 6, 0); // 6 months after end date
+        
+        // Use the later of: user's end date + 90 days OR 6 months after end date
+        const userEndPlus90 = endDateObj ? addDays(endDateObj, 90) : addDays(startDateObj, 180 + comparisonDays);
+        analysisEndDate = extendedEndDate > userEndPlus90 ? extendedEndDate : userEndPlus90;
       }
       
       // Log the expanded range for debugging
@@ -153,6 +172,9 @@ export class FlightAnalysisService {
       });
 
       // Get flight prices for analysis (wider date range for season calculation)
+      // ✅ IMPORTANT: Always query economy class for season calculation
+      // Season is based on DATE, not travel class. Travel class multiplier will be applied later.
+      // This ensures the same season is shown for the same date regardless of travel class selection.
       let flightPrices;
       try {
         flightPrices = await FlightModel.getFlightPrices(
@@ -162,7 +184,7 @@ export class FlightAnalysisService {
           analysisEndDate,
           tripType || 'round-trip',
           airlineIds,
-          travelClass
+          'economy'  // ✅ Always use economy for season calculation
         );
       } catch (dbError: any) {
         logDatabaseError('FlightAnalysisService.getFlightPrices', dbError, {
@@ -188,6 +210,8 @@ export class FlightAnalysisService {
         tripType: tripType || 'round-trip',
         airlineIds: airlineIds?.length || 'all',
         flightCount: flightPrices.length,
+        seasonCalculationTravelClass: 'economy', // ✅ Always economy for season calculation
+        userSelectedTravelClass: travelClass, // User's selected travel class (multiplier applied later)
       });
 
       // ✅ ใช้ราคาจาก DB โดยตรง (ไม่ต้องคูณ multiplier อีก)
@@ -202,6 +226,8 @@ export class FlightAnalysisService {
       console.log(`[FlightAnalysis] Flight prices by season:`, seasonCounts);
 
       // Calculate seasons using prices from DB (which already include multipliers)
+      // ✅ Season calculation uses economy prices only (season is date-based, not class-based)
+      // Travel class multiplier will be applied to season prices later
       const seasons = await this.calculateSeasons(
         originAirportCode,
         destinationAirportCode,
@@ -279,6 +305,30 @@ export class FlightAnalysisService {
       
       // Find season for the recommended date (best deal season)
       const recommendedSeason = bestDeal;
+
+      // ✅ Calculate season for user's selected date (if provided)
+      // This ensures the season badge matches the selected date's month in the timeline
+      const getSeasonForDate = (date: Date, seasons: SeasonData[]): 'high' | 'normal' | 'low' => {
+        const month = date.getMonth() + 1; // Convert 0-11 to 1-12
+        
+        // Build monthSeasonMap from seasons data
+        const monthSeasonMap: Record<number, 'high' | 'normal' | 'low'> = {};
+        seasons.forEach(season => {
+          season.months.forEach(monthName => {
+            const monthIndex = this.getMonthIndexFromThaiName(monthName);
+            if (monthIndex !== -1) {
+              monthSeasonMap[monthIndex] = season.type;
+            }
+          });
+        });
+        
+        return monthSeasonMap[month] || 'normal';
+      };
+
+      // ✅ Use season of selected date if available, otherwise use best deal season
+      const selectedDateSeason = userSelectedDate 
+        ? getSeasonForDate(userSelectedDate, seasons)
+        : recommendedSeason.type;
 
       // ✅ Calculate price comparison (before/after) based on USER SELECTED DATE if available
       // เพราะ "ถ้าคุณไปก่อน/หลัง" ควรหมายถึงการเปลี่ยนจากวันที่ที่เลือก
@@ -410,7 +460,7 @@ export class FlightAnalysisService {
             this.getTravelClassMultiplier(travelClass)  // Always apply travel class multiplier
         ),
         airline: this.getAirlineForDate(flightPrices, recommendedStartDate, tripType || 'round-trip') || bestDeal.bestDeal.airline,
-        season: recommendedSeason.type,
+        season: selectedDateSeason, // ✅ Use season of selected date, not best deal season
         savings: Math.round(
           savings *
             (tripType === 'one-way' ? 0.5 : 1) *
@@ -559,8 +609,8 @@ export class FlightAnalysisService {
     destination: string,
     flightPrices: any[]
   ): Promise<SeasonData[]> {
-    // Calculate from actual flight prices with demand data
-    console.log(`[FlightAnalysis] Calculating seasons from flight prices and demand data for ${origin} → ${destination}`);
+    // Calculate from actual flight prices with holiday and weather data
+    console.log(`[FlightAnalysis] Calculating seasons from flight prices, holiday, and weather data for ${origin} → ${destination}`);
     return await this.calculateSeasonsWithDemand(origin, destination, flightPrices);
   }
 
@@ -568,6 +618,7 @@ export class FlightAnalysisService {
    * Convert database season configs to SeasonData format
    * @deprecated Removed - no longer using SeasonConfigModel
    */
+  // @ts-ignore - Deprecated method, kept for reference
   private convertDbConfigsToSeasonData_DEPRECATED(
     dbConfigs: any[],
     flightPrices: any[]
@@ -710,8 +761,8 @@ export class FlightAnalysisService {
   }
 
   /**
-   * Calculate seasons using multi-factor scoring (price + demand + holiday + weather)
-   * Uses price percentile (40%), demand percentile (30%), holiday boost (20%), and weather factor (10%)
+   * Calculate seasons using multi-factor scoring (price + holiday + weather)
+   * Uses price percentile (60%), holiday boost (30%), and weather factor (10%)
    */
   private async calculateSeasonsWithDemand(
     origin: string,
@@ -719,44 +770,45 @@ export class FlightAnalysisService {
     flightPrices: any[]
   ): Promise<SeasonData[]> {
     // Import services dynamically to avoid circular dependencies
-    const { AmadeusDemandDataService } = await import('./amadeusDemandDataService');
     const { IAppHolidayService } = await import('./iappHolidayService');
     const { HolidayStatisticsModel } = await import('../models/HolidayStatistics');
     
-    const demandService = new AmadeusDemandDataService();
     const holidayService = new IAppHolidayService();
     
-    // Get route ID for demand data lookup
+    // Get route ID (reserved for future use)
     const route = await FlightModel.getOrCreateRoute(origin, destination, 0, 0);
     
-    // Get periods for past 12 months
-    const periods = Array.from({ length: 12 }, (_, i) => {
-      const date = new Date();
-      date.setMonth(date.getMonth() - i);
-      return format(date, 'yyyy-MM');
-    });
+    // ✅ Get periods from flight prices (not from past 12 months)
+    // This ensures we only fetch weather/holiday data for periods that actually have flight prices
+    const flightPeriods = Array.from(new Set(
+      flightPrices.map(fp => format(new Date(fp.departure_date), 'yyyy-MM'))
+    ));
     
-    // Fetch demand data
-    let allDemandData = await demandService.getDemandDataForPeriods(route.id, periods);
+    console.log(`[FlightAnalysis] Flight periods from prices: ${flightPeriods.join(', ')}`);
     
     // Convert destination airport code to province name for weather lookup
     // For now, use a simple mapping (can be enhanced later)
     const destinationProvince = this.getProvinceFromAirportCode(destination);
     
+    if (!destinationProvince) {
+      console.warn(`[FlightAnalysis] No province mapping found for airport code: ${destination}`);
+    }
+    
     // Fetch weather and holiday data from database (or fetch if not available)
     const weatherDataMap = new Map<string, number>(); // period -> weather score
     const holidayDataMap = new Map<string, number>(); // period -> holiday score
     
-    // Load weather data from database (query weather_data table directly)
+    // Load weather data from database (use daily_weather_data as primary source)
     if (destinationProvince) {
-      const weatherDataFromDB = await this.getWeatherDataFromDatabase(destinationProvince, periods);
+      const weatherDataFromDB = await this.getWeatherDataFromDatabase(destinationProvince, flightPeriods);
       weatherDataFromDB.forEach((score, period) => {
         weatherDataMap.set(period, score);
       });
+      console.log(`[FlightAnalysis] Loaded weather data for ${weatherDataMap.size} periods from database`);
     }
     
     // Load holiday data from database
-    for (const period of periods) {
+    for (const period of flightPeriods) {
       const holidayStats = await HolidayStatisticsModel.getHolidayStatisticsForPeriod(period);
       if (holidayStats && holidayStats.holiday_score !== null) {
         holidayDataMap.set(period, holidayStats.holiday_score);
@@ -776,73 +828,155 @@ export class FlightAnalysisService {
       }
     }
     
-    // Generate mock demand data if no real demand data available
-    if (allDemandData.size === 0) {
-      console.log(`[FlightAnalysis] No Amadeus demand data, generating mock demand data`);
-      const flightPeriods = Array.from(new Set(
-        flightPrices.map(fp => format(new Date(fp.departure_date), 'yyyy-MM'))
-      ));
-      allDemandData = this.generateMockDemandData(flightPeriods);
+    console.log(`[FlightAnalysis] Loaded holiday data for ${holidayDataMap.size} periods from database`);
+    
+    // ✅ Always use multi-factor calculation - generate mock data if needed
+    
+    // ✅ Generate mock data from actual flight prices (not hardcoded months)
+    // This ensures season calculation is based on real price data, not fixed month patterns
+    
+    // Generate mock weather data for missing periods
+    // Check which periods are missing weather data and generate mock for those
+    const missingWeatherPeriods = flightPeriods.filter(period => !weatherDataMap.has(period));
+    if (missingWeatherPeriods.length > 0 && destinationProvince) {
+      console.log(`[FlightAnalysis] Missing weather data for ${missingWeatherPeriods.length} periods, generating mock weather data from flight prices for ${origin} → ${destination}`);
+      const routeIdentifier = `${origin}-${destination}`;
+      const mockWeatherData = this.generateMockWeatherDataFromPrices(flightPrices, missingWeatherPeriods, routeIdentifier);
+      mockWeatherData.forEach((score, period) => {
+        weatherDataMap.set(period, score);
+      });
     }
     
-    // Fallback to price-only calculation if NO data at all
-    if (allDemandData.size === 0 && weatherDataMap.size === 0 && holidayDataMap.size === 0) {
-      console.log(`[FlightAnalysis] No data available, using price-only calculation`);
-      return this.calculateSeasonsFromFlightPrices(flightPrices);
+    // Generate mock holiday data for missing periods
+    // Check which periods are missing holiday data and generate mock for those
+    const missingHolidayPeriods = flightPeriods.filter(period => !holidayDataMap.has(period));
+    if (missingHolidayPeriods.length > 0) {
+      console.log(`[FlightAnalysis] Missing holiday data for ${missingHolidayPeriods.length} periods, generating mock holiday data from flight prices`);
+      const mockHolidayData = this.generateMockHolidayDataFromPrices(flightPrices, missingHolidayPeriods);
+      mockHolidayData.forEach((score, period) => {
+        holidayDataMap.set(period, score);
+      });
     }
     
+    // ✅ Always use multi-factor calculation (never fallback to price-only)
+    // This ensures season calculation uses all available data sources
     return this.calculateSeasonsFromFlightPricesWithDemand(
       flightPrices,
       route.id,
-      allDemandData,
       weatherDataMap,
-      holidayDataMap
+      holidayDataMap,
+      origin,
+      destination
     );
   }
 
   /**
-   * Generate mock demand data based on seasonal patterns
-   * Used when Amadeus demand data is not available
+   * Generate mock weather data from actual flight prices
+   * Uses price as proxy for weather (higher price = better weather = higher score)
+   * This ensures no hardcoded month patterns - calculation is based on real data
    */
-  private generateMockDemandData(
-    periods: string[]
-  ): Map<string, { period: string; bookingsCount: number; travelersCount: number; flightsCount: number }> {
-    const demandData = new Map();
+  private generateMockWeatherDataFromPrices(
+    flightPrices: any[],
+    periods: string[],
+    routeIdentifier?: string // Add route identifier to make mock data route-specific
+  ): Map<string, number> {
+    const weatherScores = new Map<string, number>();
     
+    // Calculate average price for each period
+    const periodAvgPrices: Map<string, number> = new Map();
     periods.forEach(period => {
-      const [, month] = period.split('-').map(Number);
-      const monthNum = month;
+      const periodPrices = flightPrices
+        .filter(fp => format(new Date(fp.departure_date), 'yyyy-MM') === period)
+        .map(fp => fp.price);
       
-      // High season: more bookings/travelers
-      let bookingsMultiplier = 1.0;
-      let travelersMultiplier = 1.0;
-      
-      // High season: November (11), December (12), January (1), February (2)
-      if (monthNum === 11 || monthNum === 12 || monthNum === 1 || monthNum === 2) {
-        bookingsMultiplier = 1.4 + Math.random() * 0.2; // 1.4-1.6x
-        travelersMultiplier = 1.4 + Math.random() * 0.2;
-      } 
-      // Low season: May (5) - October (10)
-      else if (monthNum >= 5 && monthNum <= 10) {
-        bookingsMultiplier = 0.6 + Math.random() * 0.2; // 0.6-0.8x
-        travelersMultiplier = 0.6 + Math.random() * 0.2;
+      if (periodPrices.length > 0) {
+        const avgPrice = periodPrices.reduce((sum, p) => sum + p, 0) / periodPrices.length;
+        periodAvgPrices.set(period, avgPrice);
       }
-      // Normal season: March (3), April (4)
-      else {
-        bookingsMultiplier = 0.9 + Math.random() * 0.2; // 0.9-1.1x
-        travelersMultiplier = 0.9 + Math.random() * 0.2;
-      }
-      
-      demandData.set(period, {
-        period,
-        bookingsCount: Math.floor(1000 * bookingsMultiplier * (0.8 + Math.random() * 0.4)),
-        travelersCount: Math.floor(2500 * travelersMultiplier * (0.8 + Math.random() * 0.4)),
-        flightsCount: Math.floor(200 * (0.8 + Math.random() * 0.4))
-      });
     });
     
-    console.log(`[FlightAnalysis] Generated mock demand for ${demandData.size} periods`);
-    return demandData;
+    // Calculate price percentiles for normalization
+    const allAvgPrices = Array.from(periodAvgPrices.values()).sort((a, b) => a - b);
+    const minPrice = allAvgPrices[0] || 0;
+    const maxPrice = allAvgPrices[allAvgPrices.length - 1] || 1;
+    const priceRange = maxPrice - minPrice || 1;
+    
+    periods.forEach(period => {
+      const avgPrice = periodAvgPrices.get(period) || minPrice;
+      
+      // Normalize price to 0-1 range, then scale to weather score (30-90 range)
+      // Higher price = better weather = higher score
+      const normalizedPrice = (avgPrice - minPrice) / priceRange;
+      
+      // Convert normalized price to weather score (30-90 range)
+      // Base score 30 + normalized price * 60 = 30-90 range
+      let baseScore = 30 + (normalizedPrice * 60);
+      
+      // ✅ Use deterministic random based on period + route to ensure consistent season calculation
+      // Same period + route will always get the same "random" value, preventing season from changing
+      // But different routes will get different values, making seasons route-specific
+      const seed = routeIdentifier ? `${period}-${routeIdentifier}` : period;
+      baseScore += (this.deterministicRandom(seed) - 0.5) * 20;
+      
+      weatherScores.set(period, Math.max(0, Math.min(100, baseScore)));
+    });
+    
+    console.log(`[FlightAnalysis] Generated mock weather data from prices for ${weatherScores.size} periods`);
+    return weatherScores;
+  }
+
+  /**
+   * Generate mock holiday data from actual flight prices
+   * Uses price as proxy for holidays (higher price = more holidays = higher score)
+   * This ensures no hardcoded month patterns - calculation is based on real data
+   */
+  private generateMockHolidayDataFromPrices(
+    flightPrices: any[],
+    periods: string[],
+    _routeIdentifier?: string // Add route identifier (though holiday should be same for all routes)
+  ): Map<string, number> {
+    const holidayScores = new Map<string, number>();
+    
+    // Calculate average price for each period
+    const periodAvgPrices: Map<string, number> = new Map();
+    periods.forEach(period => {
+      const periodPrices = flightPrices
+        .filter(fp => format(new Date(fp.departure_date), 'yyyy-MM') === period)
+        .map(fp => fp.price);
+      
+      if (periodPrices.length > 0) {
+        const avgPrice = periodPrices.reduce((sum, p) => sum + p, 0) / periodPrices.length;
+        periodAvgPrices.set(period, avgPrice);
+      }
+    });
+    
+    // Calculate price percentiles for normalization
+    const allAvgPrices = Array.from(periodAvgPrices.values()).sort((a, b) => a - b);
+    const minPrice = allAvgPrices[0] || 0;
+    const maxPrice = allAvgPrices[allAvgPrices.length - 1] || 1;
+    const priceRange = maxPrice - minPrice || 1;
+    
+    periods.forEach(period => {
+      const avgPrice = periodAvgPrices.get(period) || minPrice;
+      
+      // Normalize price to 0-1 range, then scale to holiday score (35-95 range)
+      // Higher price = more holidays = higher score
+      const normalizedPrice = (avgPrice - minPrice) / priceRange;
+      
+      // Convert normalized price to holiday score (35-95 range)
+      // Base score 35 + normalized price * 60 = 35-95 range
+      let baseScore = 35 + (normalizedPrice * 60);
+      
+      // ✅ Use deterministic random based on period (holiday is same for all routes in Thailand)
+      // Same period will always get the same "random" value, preventing season from changing
+      // Note: Holiday mock data should be same for all routes since holidays are national
+      baseScore += (this.deterministicRandom(period) - 0.5) * 20;
+      
+      holidayScores.set(period, Math.max(0, Math.min(100, baseScore)));
+    });
+    
+    console.log(`[FlightAnalysis] Generated mock holiday data from prices for ${holidayScores.size} periods`);
+    return holidayScores;
   }
 
   /**
@@ -856,63 +990,121 @@ export class FlightAnalysisService {
     const weatherScores = new Map<string, number>();
     
     try {
-      // Query weather statistics from database
-      const query = `
-        SELECT 
-          period,
-          avg_temperature as avg_temp,
-          avg_rainfall as avg_rain,
-          avg_humidity as avg_humidity,
-          weather_score
-        FROM weather_statistics
-        WHERE province = $1
-          AND period = ANY($2)
-      `;
+      // ✅ Use daily_weather_data as primary source (aggregate to monthly)
+      const { DailyWeatherDataModel } = await import('../models/DailyWeatherData');
       
-      const result = await pool.query(query, [destination, periods]);
-      
-      result.rows.forEach((row: any) => {
-        // If weather_score is already calculated, use it directly
-        if (row.weather_score !== null && row.weather_score !== undefined) {
-          weatherScores.set(row.period, row.weather_score);
-        } else {
-          // Otherwise, calculate from raw weather data
-          const temp = parseFloat(row.avg_temp) || 25;
-          const rain = parseFloat(row.avg_rain) || 0;
-          const humidity = parseFloat(row.avg_humidity) || 70;
+      // 1. Try to get data from daily_weather_data (aggregate to monthly)
+      for (const period of periods) {
+        try {
+          const aggregated = await DailyWeatherDataModel.aggregateToMonthlyStatistics(
+            destination,
+            period
+          );
           
-          // Calculate weather score (0-100)
-          // Good weather (cool, dry) = high score
-          // Bad weather (hot, rainy) = low score
-          let score = 50; // base
-          
-          // Temperature: 20-28°C is optimal
-          if (temp >= 20 && temp <= 28) {
-            score += 20;
-          } else if (temp < 20 || temp > 32) {
-            score -= 20;
+          if (aggregated) {
+            // Calculate weather score from aggregated daily data
+            const temp = aggregated.avgTemperature;
+            const rain = aggregated.avgRainfall;
+            const humidity = aggregated.avgHumidity;
+            
+            // Calculate weather score (0-100)
+            // Good weather (cool, dry) = high score
+            // Bad weather (hot, rainy) = low score
+            let score = 50; // base
+            
+            // Temperature: 20-28°C is optimal
+            if (temp >= 20 && temp <= 28) {
+              score += 20;
+            } else if (temp < 20 || temp > 32) {
+              score -= 20;
+            }
+            
+            // Rainfall: less is better
+            if (rain < 50) {
+              score += 15;
+            } else if (rain > 200) {
+              score -= 15;
+            }
+            
+            // Humidity: 50-70% is optimal
+            if (humidity >= 50 && humidity <= 70) {
+              score += 15;
+            } else if (humidity > 80) {
+              score -= 15;
+            }
+            
+            // Clamp to 0-100
+            weatherScores.set(period, Math.max(0, Math.min(100, score)));
           }
-          
-          // Rainfall: less is better
-          if (rain < 50) {
-            score += 15;
-          } else if (rain > 200) {
-            score -= 15;
-          }
-          
-          // Humidity: 50-70% is optimal
-          if (humidity >= 50 && humidity <= 70) {
-            score += 15;
-          } else if (humidity > 80) {
-            score -= 15;
-          }
-          
-          // Clamp to 0-100
-          weatherScores.set(row.period, Math.max(0, Math.min(100, score)));
+        } catch (error) {
+          // Continue to next period if this one fails
+          console.warn(`[FlightAnalysis] Error aggregating daily weather for ${destination} (${period}):`, error);
         }
-      });
+      }
       
-      console.log(`[FlightAnalysis] Loaded weather data from database: ${weatherScores.size} periods`);
+      // 2. Fallback: If missing periods, try weather_statistics table
+      const missingPeriods = periods.filter(p => !weatherScores.has(p));
+      const dailyWeatherCount = periods.length - missingPeriods.length;
+      
+      if (missingPeriods.length > 0) {
+        console.log(`[FlightAnalysis] Falling back to weather_statistics for ${missingPeriods.length} missing periods`);
+        
+        const query = `
+          SELECT 
+            period,
+            avg_temperature as avg_temp,
+            avg_rainfall as avg_rain,
+            avg_humidity as avg_humidity,
+            weather_score
+          FROM weather_statistics
+          WHERE province = $1
+            AND period = ANY($2)
+        `;
+        
+        const result = await pool.query(query, [destination, missingPeriods]);
+        
+        result.rows.forEach((row: any) => {
+          // If weather_score is already calculated, use it directly
+          if (row.weather_score !== null && row.weather_score !== undefined) {
+            weatherScores.set(row.period, row.weather_score);
+          } else {
+            // Otherwise, calculate from raw weather data
+            const temp = parseFloat(row.avg_temp) || 25;
+            const rain = parseFloat(row.avg_rain) || 0;
+            const humidity = parseFloat(row.avg_humidity) || 70;
+            
+            // Calculate weather score (0-100)
+            let score = 50; // base
+            
+            // Temperature: 20-28°C is optimal
+            if (temp >= 20 && temp <= 28) {
+              score += 20;
+            } else if (temp < 20 || temp > 32) {
+              score -= 20;
+            }
+            
+            // Rainfall: less is better
+            if (rain < 50) {
+              score += 15;
+            } else if (rain > 200) {
+              score -= 15;
+            }
+            
+            // Humidity: 50-70% is optimal
+            if (humidity >= 50 && humidity <= 70) {
+              score += 15;
+            } else if (humidity > 80) {
+              score -= 15;
+            }
+            
+            // Clamp to 0-100
+            weatherScores.set(row.period, Math.max(0, Math.min(100, score)));
+          }
+        });
+      }
+      
+      const weatherStatsCount = weatherScores.size - dailyWeatherCount;
+      console.log(`[FlightAnalysis] Loaded weather data from database: ${weatherScores.size} periods (from daily_weather_data: ${dailyWeatherCount}, from weather_statistics: ${weatherStatsCount})`);
     } catch (error) {
       console.error('[FlightAnalysis] Error loading weather from database:', error);
     }
@@ -955,23 +1147,28 @@ export class FlightAnalysisService {
   }
 
   /**
-   * Calculate seasons from flight prices with demand, weather, and holiday data
-   * Multi-factor scoring: Price (40%) + Demand (30%) + Holiday (20%) + Weather (10%)
+   * Calculate seasons from flight prices with weather and holiday data
+   * Multi-factor scoring: Price (60%) + Holiday (30%) + Weather (10%)
    */
   private calculateSeasonsFromFlightPricesWithDemand(
     flightPrices: any[],
     _routeId: number, // Reserved for future use (e.g., route-specific adjustments)
-    demandData: Map<string, { period: string; bookingsCount: number; travelersCount: number; flightsCount: number }>,
     weatherData: Map<string, number> = new Map(), // period -> weather score (0-100)
-    holidayData: Map<string, number> = new Map() // period -> holiday score (0-100)
+    holidayData: Map<string, number> = new Map(), // period -> holiday score (0-100)
+    origin?: string, // Origin airport code for logging
+    destination?: string // Destination airport code for logging
   ): SeasonData[] {
     if (flightPrices.length === 0) {
       return this.getEmptySeasons();
     }
 
-    // Group flight prices by month
+    // ✅ Group flight prices by month
+    // Note: flightPrices come from database (flight_prices table) via FlightModel.getFlightPrices()
+    // Prices are real data stored in database, not hardcoded or calculated
     const monthPrices: Record<number, number[]> = {};
     const monthPeriods: Record<number, string> = {}; // Map month to period (YYYY-MM)
+    
+    console.log(`[FlightAnalysis] 📊 Total flight prices received: ${flightPrices.length}`);
     
     flightPrices.forEach((fp: any) => {
       const departureDate = new Date(fp.departure_date);
@@ -980,19 +1177,75 @@ export class FlightAnalysisService {
       
       if (!monthPrices[month]) {
         monthPrices[month] = [];
+        // ✅ Fix: Set period only once (use first occurrence, not last)
+        monthPeriods[month] = period;
       }
       
-      monthPrices[month].push(fp.price);
-      monthPeriods[month] = period;
+      // ✅ Use price from database (fp.price from flight_prices table)
+      // ✅ Fix: Ensure price is a valid number
+      const price = typeof fp.price === 'number' ? fp.price : parseFloat(fp.price);
+      if (!isNaN(price) && price > 0) {
+        monthPrices[month].push(price);
+      }
+      // ❌ REMOVED: Don't overwrite period - it should be set only once above
     });
+    
+    // ✅ Log flight prices distribution by month
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    console.log(`[FlightAnalysis] 📅 Flight prices by month:`);
+    Object.keys(monthPrices).sort((a, b) => parseInt(a) - parseInt(b)).forEach(monthStr => {
+      const month = parseInt(monthStr);
+      const prices = monthPrices[month];
+      const period = monthPeriods[month];
+      
+      // ✅ Fix: Ensure prices are valid before calculating average
+      const validPrices = prices.filter(p => typeof p === 'number' && !isNaN(p) && p > 0);
+      if (validPrices.length > 0) {
+        const avgPrice = validPrices.reduce((sum, p) => sum + p, 0) / validPrices.length;
+        console.log(`  ${monthNames[month - 1]} (${period}): ${prices.length} flights, avg: ฿${Math.round(avgPrice).toLocaleString()}, range: ฿${Math.min(...validPrices).toLocaleString()} - ฿${Math.max(...validPrices).toLocaleString()}`);
+      } else {
+        console.warn(`  ${monthNames[month - 1]} (${period}): ${prices.length} flights, but no valid prices!`);
+      }
+    });
+    
+    // ✅ Log missing months
+    const missingMonths: number[] = [];
+    for (let i = 1; i <= 12; i++) {
+      if (!monthPrices[i] || monthPrices[i].length === 0) {
+        missingMonths.push(i);
+      }
+    }
+    if (missingMonths.length > 0) {
+      console.warn(`[FlightAnalysis] ⚠️  Missing flight prices for months: ${missingMonths.map(m => monthNames[m - 1]).join(', ')}`);
+    }
 
-    // Calculate average price for each month
+    // ✅ Calculate average price for each month from database prices
+    // This is used for price percentile calculation (60% weight in season calculation)
     const monthAvgPrices: Record<number, number> = {};
     Object.keys(monthPrices).forEach(monthStr => {
       const month = parseInt(monthStr);
       const prices = monthPrices[month];
-      monthAvgPrices[month] = prices.reduce((sum, p) => sum + p, 0) / prices.length;
+      
+      // ✅ Fix: Ensure prices array is not empty and contains valid numbers
+      if (prices && prices.length > 0) {
+        const validPrices = prices.filter(p => typeof p === 'number' && !isNaN(p) && p > 0);
+        if (validPrices.length > 0) {
+          monthAvgPrices[month] = validPrices.reduce((sum, p) => sum + p, 0) / validPrices.length;
+        } else {
+          console.warn(`[FlightAnalysis] ⚠️  No valid prices for month ${monthNames[month - 1]}`);
+        }
+      }
     });
+    
+    // ✅ Log average prices for debugging
+    if (Object.keys(monthAvgPrices).length > 0) {
+      console.log(`[FlightAnalysis] 💵 Average prices by month:`);
+      Object.keys(monthAvgPrices).sort((a, b) => parseInt(a) - parseInt(b)).forEach(monthStr => {
+        const month = parseInt(monthStr);
+        const avgPrice = monthAvgPrices[month];
+        console.log(`  ${monthNames[month - 1]}: ฿${Math.round(avgPrice).toLocaleString()}`);
+      });
+    }
 
     // Get all average prices to calculate price percentiles
     const allAvgPrices = Object.values(monthAvgPrices);
@@ -1003,21 +1256,6 @@ export class FlightAnalysisService {
     // Calculate price percentiles for reference (used in percentile calculation)
     const sortedPrices = [...allAvgPrices].sort((a, b) => a - b);
 
-    // Calculate demand scores for each period
-    const periodDemandScores: Map<string, number> = new Map();
-    demandData.forEach((data, period) => {
-      // Demand score = (travelers * 0.6) + (bookings * 0.4)
-      const score = (data.travelersCount * 0.6) + (data.bookingsCount * 0.4);
-      periodDemandScores.set(period, score);
-    });
-
-    // Get all demand scores to calculate demand percentiles
-    const allDemandScores = Array.from(periodDemandScores.values()).sort((a, b) => a - b);
-    if (allDemandScores.length === 0) {
-      // Fallback to price-only if no demand scores
-      return this.calculateSeasonsFromFlightPrices(flightPrices);
-    }
-
     // Calculate multi-factor season score for each month
     const monthSeasonScores: Record<number, number> = {};
     
@@ -1025,15 +1263,9 @@ export class FlightAnalysisService {
       const month = parseInt(monthStr);
       const avgPrice = monthAvgPrices[month];
       const period = monthPeriods[month];
-      const demandScore = periodDemandScores.get(period) || 0;
 
       // Calculate price percentile (0-100)
       const pricePercentile = (sortedPrices.filter(p => p <= avgPrice).length / sortedPrices.length) * 100;
-      
-      // Calculate demand percentile (0-100)
-      const demandPercentile = allDemandScores.length > 0 
-        ? (allDemandScores.filter(s => s <= demandScore).length / allDemandScores.length) * 100
-        : 50; // Default to median if no demand data
 
       // Get weather factor (0-100) - default to 50 if not available
       const weatherScore = weatherData.get(period) ?? 50;
@@ -1041,20 +1273,33 @@ export class FlightAnalysisService {
       // Get holiday boost (0-100) - default to 50 if not available
       const holidayScore = holidayData.get(period) ?? 50;
 
-      // Multi-factor score: Price (40%) + Demand (30%) + Holiday (20%) + Weather (10%)
+      // Multi-factor score: Price (60%) + Holiday (30%) + Weather (10%)
       const seasonScore = 
-        (pricePercentile * 0.4) + 
-        (demandPercentile * 0.3) + 
-        (holidayScore * 0.2) + 
+        (pricePercentile * 0.6) + 
+        (holidayScore * 0.3) + 
         (weatherScore * 0.1);
       
       monthSeasonScores[month] = seasonScore;
+      
+      // Log season calculation details for debugging
+      if (month === 1) { // Log for January only to avoid too much output
+        console.log(`[FlightAnalysis] Season calculation for month ${month} (${period}):`, {
+          route: `${origin} → ${destination}`,
+          avgPrice,
+          pricePercentile: pricePercentile.toFixed(2),
+          weatherScore,
+          holidayScore,
+          seasonScore: seasonScore.toFixed(2),
+        });
+      }
     });
 
     // Classify months based on season scores
     const allScores = Object.values(monthSeasonScores).sort((a, b) => a - b);
     const scoreLowThreshold = this.percentile(allScores, 33);
     const scoreHighThreshold = this.percentile(allScores, 67);
+
+    console.log(`[FlightAnalysis] 🎯 Season score thresholds: Low ≤ ${scoreLowThreshold.toFixed(2)}, High ≥ ${scoreHighThreshold.toFixed(2)}`);
 
     const monthSeasonMap: Record<number, 'low' | 'normal' | 'high'> = {};
     
@@ -1069,6 +1314,16 @@ export class FlightAnalysisService {
       } else {
         monthSeasonMap[month] = 'normal';
       }
+    });
+    
+    // ✅ Log season classification for each month
+    console.log(`[FlightAnalysis] 🗓️  Season classification by month:`);
+    Object.keys(monthSeasonScores).sort((a, b) => parseInt(a) - parseInt(b)).forEach(monthStr => {
+      const month = parseInt(monthStr);
+      const score = monthSeasonScores[month];
+      const season = monthSeasonMap[month] || 'normal';
+      const period = monthPeriods[month] || 'N/A';
+      console.log(`  ${monthNames[month - 1]} (${period}): ${season.toUpperCase()} (score: ${score.toFixed(2)})`);
     });
 
     // Group months by season
@@ -1108,16 +1363,58 @@ export class FlightAnalysisService {
         seasonPrices[season].push(fp.price);
       }
     });
+    
+    // ✅ Log prices grouped by season
+    console.log(`[FlightAnalysis] 💰 Prices grouped by season:`);
+    console.log(`  Low: ${seasonPrices.low.length} flights (${seasonPrices.low.length > 0 ? `฿${Math.min(...seasonPrices.low).toLocaleString()} - ฿${Math.max(...seasonPrices.low).toLocaleString()}` : 'No data'})`);
+    console.log(`  Normal: ${seasonPrices.normal.length} flights (${seasonPrices.normal.length > 0 ? `฿${Math.min(...seasonPrices.normal).toLocaleString()} - ฿${Math.max(...seasonPrices.normal).toLocaleString()}` : 'No data'})`);
+    console.log(`  High: ${seasonPrices.high.length} flights (${seasonPrices.high.length > 0 ? `฿${Math.min(...seasonPrices.high).toLocaleString()} - ฿${Math.max(...seasonPrices.high).toLocaleString()}` : 'No data'})`);
 
     // Helper function to get price range for a season
     const getPriceRangeForSeason = (seasonType: 'low' | 'normal' | 'high') => {
       const prices = seasonPrices[seasonType];
       if (prices.length > 0) {
-        return {
+        const result = {
           min: Math.min(...prices),
           max: Math.max(...prices),
         };
+        console.log(`[FlightAnalysis] ✅ ${seasonType.toUpperCase()} season: Found ${prices.length} prices, range: ฿${result.min.toLocaleString()} - ฿${result.max.toLocaleString()}`);
+        return result;
       }
+      
+      // ✅ Fallback: Try to find prices from flightPrices directly
+      // This handles cases where season has months but no flights in the queried date range
+      const filteredFlights = flightPrices.filter((fp: any) => {
+        const departureDate = new Date(fp.departure_date);
+        const month = departureDate.getUTCMonth() + 1;
+        return monthSeasonMap[month] === seasonType;
+      });
+      
+      if (filteredFlights.length > 0) {
+        const flightPricesForSeason = filteredFlights.map((fp: any) => fp.price);
+        const result = {
+          min: Math.min(...flightPricesForSeason),
+          max: Math.max(...flightPricesForSeason),
+        };
+        console.log(`[FlightAnalysis] ✅ ${seasonType.toUpperCase()} season (fallback): Found ${filteredFlights.length} flights, range: ฿${result.min.toLocaleString()} - ฿${result.max.toLocaleString()}`);
+        return result;
+      }
+      
+      // ✅ Log detailed information when no prices found
+      const seasonMonthsForType = seasonMonths[seasonType];
+      const monthsWithData = seasonMonthsForType.filter(m => monthPrices[m] && monthPrices[m].length > 0);
+      const monthsWithoutData = seasonMonthsForType.filter(m => !monthPrices[m] || monthPrices[m].length === 0);
+      
+      console.warn(`[FlightAnalysis] ⚠️  ${seasonType.toUpperCase()} season: No flight prices found!`);
+      console.warn(`  Months assigned to ${seasonType}: ${seasonMonthsForType.map(m => monthNames[m - 1]).join(', ')}`);
+      console.warn(`  Months with data: ${monthsWithData.map(m => monthNames[m - 1]).join(', ') || 'None'}`);
+      console.warn(`  Months without data: ${monthsWithoutData.map(m => monthNames[m - 1]).join(', ') || 'None'}`);
+      console.warn(`  Total flight prices queried: ${flightPrices.length}`);
+      console.warn(`  Date range: ${flightPrices.length > 0 ? `${format(new Date(flightPrices[0].departure_date), 'yyyy-MM-dd')} to ${format(new Date(flightPrices[flightPrices.length - 1].departure_date), 'yyyy-MM-dd')}` : 'No data'}`);
+      
+      // ❌ REMOVED: Don't use average price as fallback - this causes all seasons to show same price
+      // If no flights found for this season, return 0 (frontend will handle display)
+      // This ensures each season shows its actual price from database, not a generic fallback
       return { min: 0, max: 0 };
     };
 
@@ -1181,8 +1478,11 @@ export class FlightAnalysisService {
   /**
    * Calculate seasons from flight prices (fallback method)
    * Calculates season classification from actual price data using percentile method
+   * @deprecated Use calculateSeasonsFromFlightPricesWithDemand instead
    */
-  private calculateSeasonsFromFlightPrices(flightPrices: any[]): SeasonData[] {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // @ts-ignore - Deprecated method, kept for reference
+  private _calculateSeasonsFromFlightPrices_DEPRECATED(flightPrices: any[]): SeasonData[] {
     if (flightPrices.length === 0) {
       // If no flight prices, return empty seasons
       return [
@@ -1437,19 +1737,22 @@ export class FlightAnalysisService {
       return monthSeasonMap[month] === targetSeason;
     });
 
-    if (filteredFlights.length === 0) {
-      return { dates: '', price: 0, airline: '' };
+    if (filteredFlights.length > 0) {
+      const cheapest = filteredFlights.reduce((min, fp) => 
+        fp.price < min.price ? fp : min
+      );
+
+      return {
+        dates: this.formatThaiDate(new Date(cheapest.departure_date)),
+        price: cheapest.price,
+        airline: cheapest.airline_name_th || cheapest.airline_name || '',
+      };
     }
 
-    const cheapest = filteredFlights.reduce((min, fp) => 
-      fp.price < min.price ? fp : min
-    );
-
-    return {
-      dates: this.formatThaiDate(new Date(cheapest.departure_date)),
-      price: cheapest.price,
-      airline: cheapest.airline_name_th || cheapest.airline_name || '',
-    };
+    // ❌ REMOVED: Don't use average price as fallback - this causes all seasons to show same price
+    // If no flights found for this season, return 0 (frontend will handle display)
+    // This ensures each season shows its actual price from database, not a generic fallback
+    return { dates: '', price: 0, airline: '' };
   }
 
 
@@ -1763,22 +2066,23 @@ export class FlightAnalysisService {
     const endPointDate = endDate || startDate || new Date();
     
     // ✅ หาช่วงวันที่ที่มีข้อมูลจริงๆ จาก flightPrices ก่อน
-    let dataStartDate: Date | null = null;
-    let dataEndDate: Date | null = null;
+    // Note: Currently not used, but kept for future reference
+    // let dataStartDate: Date | null = null;
+    // let dataEndDate: Date | null = null;
 
-    if (flightPrices.length > 0) {
-      const dates = flightPrices
-        .map((fp) => {
-          const date = fp.departure_date instanceof Date 
-            ? fp.departure_date 
-            : new Date(fp.departure_date);
-          return date;
-        })
-        .sort((a, b) => a.getTime() - b.getTime());
-      
-      dataStartDate = dates[0];
-      dataEndDate = dates[dates.length - 1];
-    }
+    // if (flightPrices.length > 0) {
+    //   const dates = flightPrices
+    //     .map((fp) => {
+    //       const date = fp.departure_date instanceof Date 
+    //         ? fp.departure_date 
+    //         : new Date(fp.departure_date);
+    //       return date;
+    //     })
+    //     .sort((a, b) => a.getTime() - b.getTime());
+    //   
+    //   dataStartDate = dates[0];
+    //   dataEndDate = dates[dates.length - 1];
+    // }
 
     // ✅ ปรับให้กราฟแสดงแค่เดือนที่เลือก และเลื่อนตามวันที่ที่เลือก:
     // - ใช้ startDate เป็นเดือนที่จะแสดง (ถ้าไม่มี startDate ให้ใช้ endDate หรือวันนี้)
@@ -1922,7 +2226,9 @@ export class FlightAnalysisService {
 
   /**
    * Get season for a specific month (month number 1-12)
+   * @deprecated Currently not used, but kept for future reference
    */
+  // @ts-ignore - Deprecated method, kept for reference
   private getSeasonForMonth(
     seasons: SeasonData[],
     monthNumber: number,
@@ -1995,6 +2301,24 @@ export class FlightAnalysisService {
     }
     
     return -1;
+  }
+
+  /**
+   * Generate deterministic random number from a seed string
+   * This ensures the same seed always produces the same "random" value
+   * Used to make season calculation deterministic (same period = same season)
+   * Returns a value between 0 and 1 (inclusive)
+   */
+  private deterministicRandom(seed: string): number {
+    let hash = 0;
+    for (let i = 0; i < seed.length; i++) {
+      const char = seed.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+    // Convert hash to 0-1 range (ensure it's always in valid range)
+    const normalized = Math.abs(hash) % 1000000 / 1000000;
+    return normalized;
   }
 
   /**

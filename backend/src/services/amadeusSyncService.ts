@@ -5,7 +5,6 @@
 
 import * as cron from 'node-cron';
 import { AmadeusFlightOffersService } from './amadeusFlightOffersService';
-import { AmadeusDemandDataService } from './amadeusDemandDataService';
 import { OpenMeteoService } from './openMeteoService';
 import { IAppHolidayService } from './iappHolidayService';
 import { WeatherStatisticsModel } from '../models/WeatherStatistics';
@@ -15,11 +14,9 @@ import { addDays, format } from 'date-fns';
 export class AmadeusSyncService {
   private jobs: cron.ScheduledTask[] = [];
   private flightService: AmadeusFlightOffersService;
-  private demandService: AmadeusDemandDataService;
 
   constructor() {
     this.flightService = new AmadeusFlightOffersService();
-    this.demandService = new AmadeusDemandDataService();
   }
 
   /**
@@ -31,9 +28,6 @@ export class AmadeusSyncService {
 
     // Job: Sync flight prices daily at 2 AM
     this.scheduleFlightPriceSync();
-
-    // Job: Sync demand data monthly on the 1st at 3 AM
-    this.scheduleDemandDataSync();
 
     // Job: Sync weather data monthly on the 1st at 4 AM
     this.scheduleWeatherDataSync();
@@ -107,6 +101,7 @@ export class AmadeusSyncService {
         console.error('[AmadeusSync] ❌ Fatal error in sync job:', error);
       }
     }, {
+      // @ts-ignore - scheduled property may not be in TaskOptions type but is used by scheduler
       scheduled: false,
       timezone: 'Asia/Bangkok',
     });
@@ -114,63 +109,6 @@ export class AmadeusSyncService {
     this.jobs.push(job);
     job.start();
     console.log('✅ Scheduled: Flight price sync (daily at 02:00 Bangkok time)');
-  }
-
-  /**
-   * Schedule monthly demand data sync
-   * Runs on the 1st of each month at 3:00 AM Bangkok time
-   */
-  private scheduleDemandDataSync(): void {
-    const job = cron.schedule('0 3 1 * *', async () => {
-      const startTime = new Date();
-      console.log('\n' + '='.repeat(60));
-      console.log(`[AmadeusSync] 📊 Starting demand data sync at ${startTime.toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' })}`);
-      console.log('='.repeat(60));
-
-      try {
-        const popularRoutes = [
-          { origin: 'BKK', destination: 'CNX' },
-          { origin: 'BKK', destination: 'HKT' },
-          { origin: 'BKK', destination: 'KBV' },
-        ];
-
-        let totalStored = 0;
-
-        for (const route of popularRoutes) {
-          try {
-            console.log(`[AmadeusSync] Fetching demand data for ${route.origin} → ${route.destination}...`);
-
-            // Fetch and store demand data for past 12 months
-            const count = await this.demandService.fetchAndStoreDemandData(
-              route.origin,
-              route.destination,
-              12 // months back
-            );
-
-            totalStored += count;
-            console.log(`[AmadeusSync] ✅ Stored ${count} periods of demand data for ${route.origin} → ${route.destination}`);
-          } catch (error: any) {
-            console.error(`[AmadeusSync] ❌ Error syncing demand data for ${route.origin} → ${route.destination}:`, error.message);
-          }
-        }
-
-        const endTime = new Date();
-        const duration = (endTime.getTime() - startTime.getTime()) / 1000;
-        console.log('='.repeat(60));
-        console.log(`[AmadeusSync] ✅ Demand data sync completed in ${duration.toFixed(2)}s`);
-        console.log(`[AmadeusSync] Total periods stored: ${totalStored}`);
-        console.log('='.repeat(60) + '\n');
-      } catch (error: any) {
-        console.error('[AmadeusSync] ❌ Fatal error in demand data sync job:', error);
-      }
-    }, {
-      scheduled: false,
-      timezone: 'Asia/Bangkok',
-    });
-
-    this.jobs.push(job);
-    job.start();
-    console.log('✅ Scheduled: Demand data sync (monthly on 1st at 03:00 Bangkok time)');
   }
 
   /**
@@ -247,6 +185,7 @@ export class AmadeusSyncService {
         console.error('[AmadeusSync] ❌ Fatal error in weather data sync job:', error);
       }
     }, {
+      // @ts-ignore - scheduled property may not be in TaskOptions type but is used by scheduler
       scheduled: false,
       timezone: 'Asia/Bangkok',
     });
@@ -341,6 +280,7 @@ export class AmadeusSyncService {
         console.error('[AmadeusSync] ❌ Fatal error in holiday data sync job:', error);
       }
     }, {
+      // @ts-ignore - scheduled property may not be in TaskOptions type but is used by scheduler
       scheduled: false,
       timezone: 'Asia/Bangkok',
     });

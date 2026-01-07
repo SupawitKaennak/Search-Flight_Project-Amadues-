@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { AmadeusAirlineService } from '../services/amadeusAirlineService';
 import { FlightModel } from '../models/Flight';
-import { logApiError, logDatabaseError } from '../utils/errorLogger';
+import { logApiError } from '../utils/errorLogger';
 
 const airlineService = new AmadeusAirlineService();
 
@@ -10,7 +10,7 @@ const airlineService = new AmadeusAirlineService();
  * GET /api/airlines
  */
 export async function getAllAirlines(
-  req: Request,
+  _req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> {

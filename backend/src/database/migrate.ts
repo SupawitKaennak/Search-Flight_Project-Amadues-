@@ -19,9 +19,9 @@ async function getMigrations(): Promise<Migration[]> {
     { name: '004_add_composite_indexes', file: '004_add_composite_indexes.sql' },
     { name: '005_create_history_tables', file: '005_create_history_tables.sql' },
     { name: '006_update_flight_prices_unique_constraint', file: '006_update_flight_prices_unique_constraint.sql' },
-    { name: '007_create_demand_and_price_metrics', file: '007_create_demand_and_price_metrics.sql' },
-    { name: '008_create_weather_and_holiday_statistics', file: '008_create_weather_and_holiday_statistics.sql' },
-    { name: '009_add_travel_class', file: '009_add_travel_class.sql' },
+    { name: '007_create_weather_and_holiday_statistics', file: '007_create_weather_and_holiday_statistics.sql' },
+    { name: '008_add_travel_class', file: '008_add_travel_class.sql' },
+    { name: '009_create_daily_weather_data', file: '009_create_daily_weather_data.sql' },
   ];
 }
 

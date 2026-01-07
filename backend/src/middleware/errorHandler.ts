@@ -10,7 +10,7 @@ export function errorHandler(
   err: ApiError | ZodError,
   req: Request,
   res: Response,
-  next: NextFunction
+  _next: NextFunction
 ): void {
   // Zod validation errors
   if (err instanceof ZodError) {

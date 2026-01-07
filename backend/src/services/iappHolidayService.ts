@@ -3,7 +3,7 @@
  * Fetches Thai holiday data from iApp API for season calculation
  */
 
-import { format, parseISO, isWeekend, addDays, startOfMonth, endOfMonth } from 'date-fns';
+import { format, parseISO, isWeekend, addDays } from 'date-fns';
 
 export interface Holiday {
   date: string; // YYYY-MM-DD format
@@ -92,7 +92,7 @@ export class IAppHolidayService {
         return [];
       }
 
-      const responseData: IAppHolidayAPIResponse = await response.json();
+      const responseData = await response.json() as IAppHolidayAPIResponse;
       
       // API returns { holidays: [...], total_count: N, ... }
       if (!responseData.holidays || !Array.isArray(responseData.holidays)) {
@@ -157,7 +157,7 @@ export class IAppHolidayService {
         return this.getHolidaysForYearsFallback(startDate, endDate);
       }
 
-      const responseData: IAppHolidayAPIResponse = await response.json();
+      const responseData = await response.json() as IAppHolidayAPIResponse;
       
       // API returns { holidays: [...], total_count: N, ... }
       if (!responseData.holidays || !Array.isArray(responseData.holidays)) {

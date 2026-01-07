@@ -1,3 +1,4 @@
+// @ts-ignore - No type definitions available for amadeus
 import Amadeus from 'amadeus';
 
 /**
@@ -31,9 +32,9 @@ export class AmadeusService {
   protected handleError(error: any): never {
     // If error is already an Error instance, preserve it but add statusCode if available
     if (error instanceof Error) {
-      if (error.response) {
-        const statusCode = error.response.statusCode || 500;
-        const code = error.response.body?.errors?.[0]?.code || 'AMADEUS_API_ERROR';
+      if ((error as any).response) {
+        const statusCode = (error as any).response.statusCode || 500;
+        const code = (error as any).response.body?.errors?.[0]?.code || 'AMADEUS_API_ERROR';
         (error as any).statusCode = statusCode;
         (error as any).code = code;
       }

@@ -1,4 +1,4 @@
--- Migration 008: Create weather_statistics and holiday_statistics tables
+-- Migration 007: Create weather_statistics and holiday_statistics tables
 -- These tables store weather and holiday data for dynamic season calculation
 -- 
 -- weather_statistics: Stores weather data from Open-Meteo Historical API

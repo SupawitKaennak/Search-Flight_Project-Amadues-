@@ -7,6 +7,7 @@ interface ErrorContext {
   [key: string]: any;
 }
 
+// @ts-ignore - Interface kept for future use
 interface AmadeusErrorDetails {
   status?: number;
   code?: string;

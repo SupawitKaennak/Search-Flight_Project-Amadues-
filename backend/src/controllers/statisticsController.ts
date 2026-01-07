@@ -93,7 +93,7 @@ export async function savePriceStat(req: Request, res: Response, next: NextFunct
  * Get all statistics
  * GET /api/statistics
  */
-export async function getStatistics(req: Request, res: Response, next: NextFunction): Promise<void> {
+export async function getStatistics(_req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const [
       totalSearches,

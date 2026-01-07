@@ -140,23 +140,25 @@ function getSeasonalMultiplier(month: number): number {
 #### Final Price Calculation
 
 ```typescript
-price = basePrice × seasonalMultiplier × tripTypeMultiplier × randomVariation
+price = basePrice × seasonalMultiplier × tripTypeMultiplier × travelClassMultiplier × randomVariation
 
 Where:
 - basePrice: 1000 + (distance_km × 0.15)
 - seasonalMultiplier: 0.7-1.5x (depends on month)
 - tripTypeMultiplier: 1.0 (one-way) or 1.8 (round-trip)
+- travelClassMultiplier: 1.0 (economy), 2.5 (business), 4.0 (first)
 - randomVariation: 0.98-1.02 (±2% for realism)
 ```
 
-**Example (High Season, One-way):**
+**Example (High Season, One-way, Business Class):**
 ```
 basePrice = 1090 THB
 seasonalMultiplier = 1.4 (high season)
 tripTypeMultiplier = 1.0 (one-way)
+travelClassMultiplier = 2.5 (business)
 randomVariation = 1.01
 
-finalPrice = 1090 × 1.4 × 1.0 × 1.01 = 1541 THB
+finalPrice = 1090 × 1.4 × 1.0 × 2.5 × 1.01 = 3853 THB
 ```
 
 ---
@@ -565,6 +567,7 @@ CREATE TABLE flight_prices (
   price DECIMAL(10, 2) NOT NULL,
   base_price DECIMAL(10, 2),               -- Raw price before multipliers
   trip_type VARCHAR(20) NOT NULL,          -- 'one-way' or 'round-trip'
+  travel_class VARCHAR(20) DEFAULT 'economy', -- 'economy', 'business', or 'first'
   departure_time TIME,
   arrival_time TIME,
   season VARCHAR(20),                      -- Calculated season
@@ -921,6 +924,56 @@ CREATE INDEX idx_weather_stats_province_period
 
 ---
 
+## ✈️ Travel Class Support
+
+### Overview
+
+ระบบรองรับการคำนวณราคาตามชั้นโดยสาร (Travel Class) 3 ระดับ:
+
+1. **Economy Class** (ชั้นประหยัด) - Multiplier: 1.0x
+2. **Business Class** (ชั้นธุรกิจ) - Multiplier: 2.5x
+3. **First Class** (ชั้นหนึ่ง) - Multiplier: 4.0x
+
+### Price Calculation with Travel Class
+
+```typescript
+finalPrice = basePrice × 
+             seasonalMultiplier × 
+             tripTypeMultiplier × 
+             travelClassMultiplier × 
+             passengerCount
+
+Where:
+- travelClassMultiplier:
+  - economy: 1.0x
+  - business: 2.5x
+  - first: 4.0x
+```
+
+### Database Storage
+
+- คอลัมน์ `travel_class` ในตาราง `flight_prices` เก็บข้อมูลชั้นโดยสาร
+- Default value: `'economy'`
+- ถ้า database มีข้อมูล travel_class อยู่แล้ว ใช้ราคานั้นเลย
+- ถ้าไม่มี (มีแค่ economy) ระบบจะคูณด้วย multiplier อัตโนมัติ
+
+### API Usage
+
+```typescript
+// Request
+{
+  "origin": "bangkok",
+  "destination": "chiang-mai",
+  "travelClass": "business", // Optional, default: "economy"
+  "passengerCount": 2,
+  // ... other params
+}
+
+// Response price will be calculated with travel class multiplier
+```
+
+---
+
 **Last Updated:** 2025-12-30
-**Version:** 1.0.0
+**Version:** 1.1.0
 
