@@ -223,7 +223,7 @@ export function RecommendationCard({ recommendedPeriod, seasons, currentSeason, 
                   <Info className="w-5 h-5 text-muted-foreground hover:text-foreground transition-colors" />
                 </button>
               </PopoverTrigger>
-              <PopoverContent className="w-80" align="start">
+              <PopoverContent className="w-96" align="start">
                 <div className="space-y-4">
                   <div className="font-semibold text-sm mb-2">
                     {'เปรียบเทียบกับ Season อื่นๆ'}

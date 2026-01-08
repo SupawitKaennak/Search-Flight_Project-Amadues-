@@ -359,7 +359,7 @@ export function SeasonalBreakdown({ seasons: propSeasons, recommendedPeriod, des
         {/* Floating comparison tooltip that follows mouse */}
         {isHovering && (
           <div
-            className="fixed z-50 max-w-md p-4 bg-popover text-popover-foreground rounded-lg border shadow-lg pointer-events-none"
+            className="fixed z-50 max-w-lg p-4 bg-popover text-popover-foreground rounded-lg border shadow-lg pointer-events-none"
             style={{
               left: `${mousePosition.x + 15}px`,
               top: `${mousePosition.y + 15}px`,
