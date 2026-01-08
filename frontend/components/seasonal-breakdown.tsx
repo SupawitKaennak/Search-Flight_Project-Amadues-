@@ -335,8 +335,8 @@ export function SeasonalBreakdown({ seasons: propSeasons, recommendedPeriod, des
                       <div className="p-5 bg-background rounded-lg border">
                         <div className="text-sm text-muted-foreground mb-2">
                           {currentSeason === 'high' 
-                            ? 'ราคาปัจจุบัน (High Season)'
-                            : 'ราคาปัจจุบัน (Normal Season)'}
+                            ? 'ราคาวันนี้ (High Season)'
+                            : 'ราคาวันนี้ (Normal Season)'}
                         </div>
                         <div className={`text-2xl font-bold ${recConfig.priceColor}`}>
                           {'฿'}{currentPrice.toLocaleString()}

@@ -186,7 +186,7 @@ export function PopularDestinations({ flightPrices, currentSearchParams }: Popul
             let cheapestPrice: number | null = null
             let airlineName: string | null = null
             let cheapestDate: string | null = null // ✅ เพิ่มวันที่ของราคาต่ำสุด
-            let trend = mockTrends[provinceValue] || '+10%'
+            let trend = '0%' // ✅ ไม่ใช้ mockTrends แล้ว ใช้ 0% เป็นค่าเริ่มต้น
             
             // ✅ ตรวจสอบว่ามีข้อมูล flightPrices จาก airline-flights หรือไม่ (ถ้าปลายทางตรงกัน)
             // เปรียบเทียบทั้ง destination value และ province value
@@ -319,11 +319,13 @@ export function PopularDestinations({ flightPrices, currentSearchParams }: Popul
                   trend = '0%'
                 }
               } else {
-                console.log(`[PopularDestinations] ${dest.destination} - No trend data, using mockTrends`)
+                console.log(`[PopularDestinations] ${dest.destination} - No trend data, using 0%`)
+                trend = '0%' // ✅ แสดง 0% เมื่อไม่มีข้อมูลจาก API
               }
             } catch (trendError) {
-              // ถ้าไม่มี trend data ก็ใช้ mock data
-              console.warn(`[PopularDestinations] No trend data for ${dest.destination}`, trendError)
+              // ถ้าไม่มี trend data แสดง 0%
+              console.warn(`[PopularDestinations] No trend data for ${dest.destination}, using 0%`, trendError)
+              trend = '0%' // ✅ แสดง 0% เมื่อเกิด error
             }
             
             // ถ้ายังไม่มีราคา ให้ใช้ค่า default ตามระยะทางคร่าวๆ

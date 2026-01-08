@@ -139,25 +139,6 @@ export function RecommendationCard({ recommendedPeriod, seasons, currentSeason, 
     ? currentSeasonBestDealPrice 
     : currentPrice // Fallback to currentPrice if bestDeal not available
   
-  // ✅ Calculate best deal across all seasons for comparison
-  const bestDealAcrossSeasons = seasons.reduce((best, season) => {
-    if (!best) return season
-    const seasonPrice = getSeasonPrice(season)
-    const bestPrice = getSeasonPrice(best)
-    return seasonPrice > 0 && (bestPrice === 0 || seasonPrice < bestPrice) ? season : best
-  }, null as SeasonData | null)
-  
-  const bestDealPrice = bestDealAcrossSeasons ? getSeasonPrice(bestDealAcrossSeasons) : 0
-  
-  // ✅ Calculate comparison for current season (compared to best deal)
-  const currentSeasonComparison = comparisonBasePrice > 0 && bestDealPrice > 0 && comparisonBasePrice !== bestDealPrice
-    ? {
-        difference: comparisonBasePrice - bestDealPrice,
-        percentage: Math.round(((comparisonBasePrice - bestDealPrice) / bestDealPrice) * 100),
-        isCheaper: comparisonBasePrice < bestDealPrice,
-      }
-    : null
-  
   const seasonComparisons = [
     {
       type: 'low' as const,
@@ -260,28 +241,11 @@ export function RecommendationCard({ recommendedPeriod, seasons, currentSeason, 
                         className={`text-sm font-bold ${currentSeason === 'low' ? 'text-green-600' : currentSeason === 'high' ? 'text-red-600' : 'text-blue-600'}`}
                       >
                         {'฿'}{comparisonBasePrice > 0 ? comparisonBasePrice.toLocaleString() : currentPrice > 0 ? currentPrice.toLocaleString() : '-'}
-                        {/* ✅ แสดงราคาวันนี้เป็นข้อมูลเพิ่มเติม ถ้าแตกต่างจาก bestDeal */}
-                        {comparisonBasePrice > 0 && currentPrice > 0 && comparisonBasePrice !== currentPrice && (
-                          <span className="text-xs text-muted-foreground ml-1 block mt-1">
-                            {'(ราคาวันนี้: ฿'}{currentPrice.toLocaleString()}{')'}
-                          </span>
-                        )}
                       </div>
                     </div>
                     {currentSeasonData && (
                       <div className="text-xs text-muted-foreground">
                         {'ช่วง: '}{currentSeasonData.months.join(', ')}
-                      </div>
-                    )}
-                    {/* ✅ Show comparison percentage for current season */}
-                    {currentSeasonComparison && (
-                      <div className="flex items-center justify-between text-xs mt-1">
-                        <span className="text-muted-foreground">
-                          {'เปรียบเทียบกับ Best Deal'}
-                        </span>
-                        <span className={currentSeasonComparison.isCheaper ? 'text-green-600 font-semibold' : 'text-red-600 font-semibold'}>
-                          {currentSeasonComparison.isCheaper ? 'ถูกกว่า' : 'แพงกว่า'} {Math.abs(currentSeasonComparison.percentage)}%
-                        </span>
                       </div>
                     )}
                     {currentSeasonData && currentSeasonData.priceRange.min > 0 && currentSeasonData.priceRange.max > 0 && (
@@ -362,7 +326,7 @@ export function RecommendationCard({ recommendedPeriod, seasons, currentSeason, 
               </p>
               <div className="grid md:grid-cols-2 gap-4">
                 <div className="p-5 bg-background rounded-lg border">
-                  <div className="text-sm text-muted-foreground mb-2">{'ราคาปัจจุบัน (Low Season)'}</div>
+                  <div className="text-sm text-muted-foreground mb-2">{'ราคาวันนี้ (Low Season)'}</div>
                   {(currentPrice > 0 || recommendedPeriod.price > 0) ? (
                     <>
                       <div className="text-2xl font-bold text-green-600">
@@ -460,7 +424,7 @@ export function RecommendationCard({ recommendedPeriod, seasons, currentSeason, 
                     )}
                   </div>
                   <div className="p-5 bg-background rounded-lg border">
-                    <div className="text-sm text-muted-foreground mb-2">{'ราคาปัจจุบัน (High Season)'}</div>
+                    <div className="text-sm text-muted-foreground mb-2">{'ราคาวันนี้ (High Season)'}</div>
                     {currentPrice > 0 ? (
                       <>
                       <div className="text-2xl font-bold text-red-600">
@@ -520,7 +484,7 @@ export function RecommendationCard({ recommendedPeriod, seasons, currentSeason, 
                     )}
                   </div>
                   <div className="p-5 bg-background rounded-lg border">
-                    <div className="text-sm text-muted-foreground mb-2">{'ราคาปัจจุบัน (Normal Season)'}</div>
+                    <div className="text-sm text-muted-foreground mb-2">{'ราคาวันนี้ (Normal Season)'}</div>
                     {currentPrice > 0 ? (
                       <>
                       <div className="text-2xl font-bold text-blue-600">
